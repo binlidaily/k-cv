@@ -133,7 +133,17 @@ void do_cross_validation()
 	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	double *target = Malloc(double,prob.l);
 
-	svm_cross_validation(&prob,&param,nr_fold,target);
+	if(param.rpi == 1)
+	{
+printf("----> choose svm_cross_validation in do_cross_validation()!\n");
+		svm_cross_validation(&prob,&param,nr_fold,target);
+	}
+	else
+	{
+		svm_cross_validation_libsvm(&prob,&param,nr_fold,target);
+	}
+	
+	
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{
@@ -187,6 +197,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	param.weight = NULL;
 	cross_validation = 0;
 
+	// rpi
+	param.rpi = 0;
+
 	// parse options
 	for(i=1;i<argc;i++)
 	{
@@ -195,6 +208,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 			exit_with_help();
 		switch(argv[i-1][1])
 		{
+			case 'l':
+				param.rpi = atoi(argv[i]);
+				break;
 			case 's':
 				param.svm_type = atoi(argv[i]);
 				break;

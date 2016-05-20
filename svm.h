@@ -47,6 +47,9 @@ struct svm_parameter
 	double p;	/* for EPSILON_SVR */
 	int shrinking;	/* use the shrinking heuristics */
 	int probability; /* do probability estimates */
+
+	// choose libsvm or rpi
+	int rpi; /* 1 for rpi, 0 for libsvm */
 };
 
 //
@@ -122,6 +125,8 @@ void calculate_second_phi(const struct svm_problem *prob, Qfloat **Q_ij, int *in
 void approximate_solution(const struct svm_problem *prob, const struct svm_parameter *param, int *index_M, int count_M, int *index_O, int count_O, int *index_I, int count_I, int *index_A, int count_A, int *index_R, int count_R, Qfloat **Q_ij, double *alpha, int *perm, double rho, double* alpha_St);
 
 svm_model *svm_train_origin(const svm_problem *prob, const svm_parameter *param, double * whole_Alpha);
+
+void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target);
 
 #ifdef __cplusplus
 }

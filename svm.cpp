@@ -38,6 +38,10 @@ int iterations_libsvm = 0;
 int iterations_replacement = 0;
 double libsvm_svm_train_time = 0;
 double replacement_svm_train_time = 0;
+double time_comsuming_solve = 0;
+double time_comsuming_solve_c = 0;
+
+
 
 #ifndef min
 template <class T> static inline T min(T x,T y) { return (x<y)?x:y; }
@@ -1500,7 +1504,7 @@ static void solve_c_svc_origin(
 	const svm_problem *prob, const svm_parameter* param,
 	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn)
 {
-printf(">>>>>>>>>> get into solve_c_svc_origin\n");
+printf("		>>>>>>>>>> get into solve_c_svc_origin\n");
 	int l = prob->l;
 	double *minus_ones = new double[l];
 	schar *y = new schar[l];
@@ -1525,9 +1529,16 @@ printf(">>>>>>>>>> get into solve_c_svc_origin\n");
 printf("in solve_c_svc_origin after a round, check_KKT_round = %lf\n", check_KKT_round);
 
 	Solver s;
+
+clock_t start_train_solve = clock(), end_train_solve;
+
+
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
+end_train_solve = clock();
+time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
@@ -1549,7 +1560,7 @@ printf("in solve_c_svc_origin after a round, check_KKT_round = %lf\n", check_KKT
 
 	delete[] minus_ones;
 	delete[] y;
-printf("<<<<<<<<< get out of solve_c_svc_origin\n");
+printf("		<<<<<<<<< get out of solve_c_svc_origin\n");
 }
 
 //
@@ -1778,6 +1789,7 @@ static decision_function svm_train_one_origin(
 	const svm_problem *prob, const svm_parameter *param,
 	double Cp, double Cn, double *whole_Alpha)
 {
+printf("	>>>>>>>>>>>>> get into svm_train_one_origin\n");
 	double *alpha = Malloc(double,prob->l);
 	alpha = whole_Alpha;
 	Solver::SolutionInfo si;
@@ -1792,7 +1804,16 @@ printf("in svm_train_one_origin sum{alpha_i * y_i} = %lf\n", sum_y_a);
 	switch(param->svm_type)
 	{
 		case C_SVC:
+		{
+clock_t start_train_solve_c = clock(), end_train_solve_c;
+
 			solve_c_svc_origin(prob,param,alpha,&si,Cp,Cn);
+
+end_train_solve_c = clock();	
+time_comsuming_solve_c += (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC;
+printf("elasped time for solve_c_svc_origin() is: %lfs\n", (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC);
+		}
+			
 			break;
 		case NU_SVC:
 			solve_nu_svc(prob,param,alpha,&si);
@@ -1841,6 +1862,7 @@ printf("in svm_train_one_origin sum{alpha_i * y_i} = %lf\n", sum_y_a);
 	f.alpha = alpha;
 
 	f.rho = si.rho;
+printf("	<<<<<<<<<<<<<< get out of svm_train_one_origin\n");
 	return f;
 }
 
@@ -2450,6 +2472,7 @@ printf(">>>>>>>>>> get into svm_train!\n");
 // {
 // printf("the index is: %d and the y[%d] is: %lf\n", ww, ww, sub_prob.y[ww]);	
 // }
+
 				f[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
 				
 				// set Global_Alpha, nr_class = 2, this loop just work once.
@@ -2769,11 +2792,11 @@ printf("at last, check_KKT = %lf\n", check_KKT);
 
 	
 	// TODO
-	double* fixed_fisrt_alpha = new double[first_round_l];
-	for (int i = 0; i < first_round_l; ++i)
-	{
-		fixed_fisrt_alpha[i]=Global_Alpha[i];
-	}
+	// double* fixed_fisrt_alpha = new double[first_round_l];
+	// for (int i = 0; i < first_round_l; ++i)
+	// {
+	// 	fixed_fisrt_alpha[i]=Global_Alpha[i];
+	// }
 	// set parameter C to variable_C
 	variable_C = param->C;
 
@@ -2829,10 +2852,10 @@ printf("the set R starts at: %d, ends at %d in this round\n", begin, end);
 
 printf("first_round_l = %d end_A-begin_A = %d sum = %d \n", first_round_l, end_A-begin_A, end_A-begin_A+first_round_l);
 
-		for (int n = 0; n < first_round_l; ++n)
-		{
-			whole_Alpha[perm[end_A+n]] = fixed_fisrt_alpha[n];
-		}
+		// for (int n = 0; n < first_round_l; ++n)
+		// {
+		// 	whole_Alpha[perm[end_A+n]] = fixed_fisrt_alpha[n];
+		// }
 
 		// reset Global_Rho
 		Global_Rho = first_rho;
@@ -3074,11 +3097,11 @@ printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
 printf("Compare sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
 ///////////////////////////////////////////////////////////////
 
-printf("after adjusting and checkk\n");
-		for (int i = 0; i < count_A; ++i)
-		{
-printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-		}
+// printf("after adjusting and checkk\n");
+// 		for (int i = 0; i < count_A; ++i)
+// 		{
+// printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
+// 		}
 
 		if(sum_a>sum_r)
 		{
@@ -3091,7 +3114,7 @@ printf("sum_a>sum_r, sum_a-sum_r = %lf greater = %d average = %lf count_A = %d c
 			for (int m = 0; m < count_A; ++m)
 			{
 
-printf("at first: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[perm[index_A[m]]]);
+// printf("at first: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[perm[index_A[m]]]);
 
 				if(((alpha_t[m]>-0.0000001)&&(alpha_t[m]<0.0000001)))
 				{
@@ -3107,7 +3130,7 @@ printf("at first: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], wh
 					continue;
 				}
 
-printf("second: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[perm[index_A[m]]]);
+// printf("second: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[perm[index_A[m]]]);
 
 				if(prob->y[perm[index_A[m]]]<0)
 				{
@@ -3120,7 +3143,7 @@ printf("second: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whol
 					greater++;
 				}
 				
-printf("third: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[index_A[m]]);
+// printf("third: i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], whole_Alpha[index_A[m]]);
 				// if(alpha_t[m]<0 && prob->y[perm[index_A[m]]]<0)
 				// {
 				// 	whole_Alpha[perm[index_A[m]]] = alpha_t[m] + average;
@@ -3275,13 +3298,16 @@ printf("Second comparing sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum
 
 	}
 
-printf("time consuming for approximate_solution() in all k fold: %lf\n", time_comsuming);
-printf("time consuming for svm_train() in all k fold: %lf\n", time_comsuming_train);
+printf("\ntime consuming for approximate_solution() in all k fold: %lfs\n", time_comsuming);
+printf("time consuming for solve() in all k fold: %lfs\n", time_comsuming_solve);  
+printf("time consuming for solve_c() in all k fold: %lfs\n", time_comsuming_solve_c);
+printf("time consuming for svm_train_one_origin() in all k fold: %lfs\n", replacement_svm_train_time);
+printf("time consuming for svm_train() in all k fold: %lf\n\n", time_comsuming_train);
 printf("iterations_check = %d\n", iterations_check);
 printf("iterations_replacement = %d\n", iterations_replacement);
 printf("iterations_libsvm = %d\n", iterations_libsvm);
-printf("replacement_svm_train_time = %lf\n", replacement_svm_train_time);
-printf("libsvm_svm_train_time = %lf\n", libsvm_svm_train_time);
+printf("replacement_svm_train_time = %lfs\n", replacement_svm_train_time);
+printf("libsvm_svm_train_time = %lfs\n", libsvm_svm_train_time);
 
 
 	free(fold_start);
@@ -3294,6 +3320,135 @@ printf("libsvm_svm_train_time = %lf\n", libsvm_svm_train_time);
 	delete[] whole_Alpha;
 }
 
+// Stratified cross validation
+void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
+{
+	int i;
+	int *fold_start;
+	int l = prob->l;
+	int *perm = Malloc(int,l);
+	int nr_class;
+	if (nr_fold > l)
+	{
+		nr_fold = l;
+		fprintf(stderr,"WARNING: # folds > # data. Will use # folds = # data instead (i.e., leave-one-out cross validation)\n");
+	}
+	fold_start = Malloc(int,nr_fold+1);
+	// stratified cv may not give leave-one-out rate
+	// Each class to l folds -> some folds may have zero elements
+	if((param->svm_type == C_SVC ||
+	    param->svm_type == NU_SVC) && nr_fold < l)
+	{
+		int *start = NULL;
+		int *label = NULL;
+		int *count = NULL;
+		svm_group_classes(prob,&nr_class,&label,&start,&count,perm);
+
+		// random shuffle and then data grouped by fold using the array perm
+		int *fold_count = Malloc(int,nr_fold);
+		int c;
+		int *index = Malloc(int,l);
+		for(i=0;i<l;i++)
+			index[i]=perm[i];
+		for (c=0; c<nr_class; c++) 
+			for(i=0;i<count[c];i++)
+			{
+				int j = i+rand()%(count[c]-i);
+				swap(index[start[c]+j],index[start[c]+i]);
+			}
+		for(i=0;i<nr_fold;i++)
+		{
+			fold_count[i] = 0;
+			for (c=0; c<nr_class;c++)
+				fold_count[i]+=(i+1)*count[c]/nr_fold-i*count[c]/nr_fold;
+		}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		for (c=0; c<nr_class;c++)
+			for(i=0;i<nr_fold;i++)
+			{
+				int begin = start[c]+i*count[c]/nr_fold;
+				int end = start[c]+(i+1)*count[c]/nr_fold;
+				for(int j=begin;j<end;j++)
+				{
+					perm[fold_start[i]] = index[j];
+					fold_start[i]++;
+				}
+			}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		free(start);
+		free(label);
+		free(count);
+		free(index);
+		free(fold_count);
+	}
+	else
+	{
+		for(i=0;i<l;i++) perm[i]=i;
+		for(i=0;i<l;i++)
+		{
+			int j = i+rand()%(l-i);
+			swap(perm[i],perm[j]);
+		}
+		for(i=0;i<=nr_fold;i++)
+			fold_start[i]=i*l/nr_fold;
+	}
+	double time_comsuming_train_libsvm = 0;
+	for(i=0;i<nr_fold;i++)
+	{
+		int begin = fold_start[i];
+		int end = fold_start[i+1];
+		int j,k;
+		struct svm_problem subprob;
+
+		subprob.l = l-(end-begin);
+		subprob.x = Malloc(struct svm_node*,subprob.l);
+		subprob.y = Malloc(double,subprob.l);
+			
+		k=0;
+		for(j=0;j<begin;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+		for(j=end;j<l;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+		// modify
+		clock_t start_train_libsvm = clock(), end_train_libsvm;
+
+		struct svm_model *submodel = svm_train(&subprob,param);
+
+		end_train_libsvm = clock();
+		time_comsuming_train_libsvm+=(double)(end_train_libsvm-start_train_libsvm)/CLOCKS_PER_SEC;
+		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train_libsvm-start_train_libsvm)/CLOCKS_PER_SEC, i);
+		if(param->probability && 
+		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
+		{
+			double *prob_estimates=Malloc(double,svm_get_nr_class(submodel));
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict_probability(submodel,prob->x[perm[j]],prob_estimates);
+			free(prob_estimates);
+		}
+		else
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
+		svm_free_and_destroy_model(&submodel);
+		free(subprob.x);
+		free(subprob.y);
+	}		
+	printf("time consuming for svm_train() in all k fold: %lf\n", time_comsuming_train_libsvm);
+	printf("iterations_check = %d\n", iterations_check);
+	free(fold_start);
+	free(perm);
+}
 
 int svm_get_svm_type(const svm_model *model)
 {
@@ -4863,7 +5018,7 @@ printf(">>>>>>>> get into svm_train_origin\n");
 		
 
 		// check alpha
-		decision_function *f1 = Malloc(decision_function,nr_class*(nr_class-1)/2);
+		// decision_function *f1 = Malloc(decision_function,nr_class*(nr_class-1)/2);
 		
 
 		double *probA=NULL,*probB=NULL;
@@ -4907,27 +5062,39 @@ double sum_y_a = 0;
 			sum_y_a += prob->y[m]*whole_Alpha[m];;
 		}
 printf("in svm_train_origin sum{alpha_i * y_i} = %lf\n", sum_y_a);
-				clock_t svm_train_start = clock(), svm_train_end;
+
+
+				clock_t svm_train_start, svm_train_end;
+
+				// svm_train_start = clock();
+				// check alpha difference
+// 				f1[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
+// 				svm_train_end = clock();
+// iterations_libsvm +=iterations_check;
+// printf("iterations_check = %d iterations_libsvm =%d elapsed time: %lf\n", iterations_check, iterations_libsvm, (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC);
+// libsvm_svm_train_time += (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC;
+	
+				svm_train_start = clock();
 				f[p] = svm_train_one_origin(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha);
 				svm_train_end = clock();
+
 iterations_replacement +=iterations_check;
 printf("iterations_check = %d iterations_replacement =%d elapsed time: %lf \n", iterations_check, iterations_replacement, (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC);
-
-				
 replacement_svm_train_time += (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC;
 
-				svm_train_start = clock();
-				// check alpha difference
-				f1[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
-				svm_train_end = clock();
-iterations_libsvm +=iterations_check;
-printf("iterations_check = %d iterations_libsvm =%d elapsed time: %lf\n", iterations_check, iterations_libsvm, (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC);
-libsvm_svm_train_time += (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC;
-printf("alpha difference: \n" );
-				for (int i = 0; i < prob->l; ++i)
-				{
-printf("libsvm vs. my_implement: %lf vs. %lf\n", f1[p].alpha[i], f[p].alpha[i]);
-				}
+// 				svm_train_start = clock();
+// 				// check alpha difference
+// 				f1[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
+// 				svm_train_end = clock();
+// iterations_libsvm +=iterations_check;
+// printf("iterations_check = %d iterations_libsvm =%d elapsed time: %lf\n", iterations_check, iterations_libsvm, (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC);
+// libsvm_svm_train_time += (double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC;
+
+// printf("alpha difference: \n" );
+// 				for (int i = 0; i < prob->l; ++i)
+// 				{
+// printf("libsvm vs. my_implement: %lf vs. %lf\n", f1[p].alpha[i], f[p].alpha[i]);
+// 				}
 
 				for(k=0;k<ci;k++)
 					if(!nonzero[si+k] && fabs(f[p].alpha[k]) > 0)
