@@ -3,9 +3,11 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-#include "svm.h"
 // include time.h for record elasped time
 #include <time.h>
+#include "svm.h"
+// new functions defined in "rpi.h"
+#include "rpi.h"
 
 #define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
@@ -134,7 +136,6 @@ void do_cross_validation()
 	double *target = Malloc(double,prob.l);
 
 	svm_cross_validation(&prob,&param,nr_fold,target);
-	
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{
@@ -190,6 +191,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 
 	// rpi
 	param.rpi = 0;
+
 
 	// parse options
 	for(i=1;i<argc;i++)
