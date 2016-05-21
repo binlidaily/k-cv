@@ -1590,8 +1590,8 @@ printf("		>>>>>>>>>> get into solve_c_svc\n");
 	// s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 	// 	alpha, Cp, Cn, param->eps, si, param->shrinking);
 
-	clock_t start_train_solve = clock(), end_train_solve;
-
+clock_t start_train_solve, end_train_solve;
+start_train_solve = clock();
 
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
@@ -2743,7 +2743,7 @@ printf(">>>>>>>> get into svm_train_origin\n");
 		
 
 		// check alpha
-		decision_function *f1 = Malloc(decision_function,nr_class*(nr_class-1)/2);
+		// decision_function *f1 = Malloc(decision_function,nr_class*(nr_class-1)/2);
 		
 
 		double *probA=NULL,*probB=NULL;

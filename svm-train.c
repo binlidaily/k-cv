@@ -135,17 +135,6 @@ void do_cross_validation()
 
 	svm_cross_validation(&prob,&param,nr_fold,target);
 	
-// 	if(param.rpi == 1)
-// 	{
-// printf("----> choose svm_cross_validation in do_cross_validation()!\n");
-// 		svm_cross_validation(&prob,&param,nr_fold,target);
-// 	}
-// 	else
-// 	{
-// 		svm_cross_validation_libsvm(&prob,&param,nr_fold,target);
-// 	}
-	
-	
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{
