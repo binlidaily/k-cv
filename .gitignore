@@ -31,3 +31,16 @@
 .settings
 .cproject
 .project
+
+#executable
+Debug
+Release
+svm-train
+svm-predict
+svm-scale
+
+#temporary files
+*~
+
+#data
+data

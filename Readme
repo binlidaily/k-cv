@@ -1,0 +1,3 @@
+Required packages:
+-armadillo
+-- sudo apt-get install libarmadillo-dev
