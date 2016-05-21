@@ -2781,6 +2781,7 @@ printf(">>>>>>>> get into svm_train_origin\n");
 				if(param->probability)
 					svm_binary_svc_probability(&sub_prob,param,weighted_C[i],weighted_C[j],probA[p],probB[p]);
 
+// check sum{alpha_i * y_i}
 double sum_y_a = 0;
 		for (int m = 0; m < prob->l; ++m)
 		{
