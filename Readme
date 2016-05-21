@@ -1,3 +1,6 @@
 Required packages:
 -armadillo
 -- sudo apt-get install libarmadillo-dev
+
+-Eigen
+-- Download: http://eigen.tuxfamily.org/index.php?title=Main_Page
