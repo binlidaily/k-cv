@@ -116,11 +116,6 @@ void get_Qij(const struct svm_problem *prob, const struct svm_parameter *param, 
 // get value of kernel function
 double kernel_function(const svm_node *x, const svm_node *y, const svm_parameter& param);
 
-// calculate the phi in equetion 10
-// double calculate_phi(const struct svm_problem *prob, Qfloat **Q_ij, int *M, int count_M, int *A, int count_A, int *R, int count_R, double *alpha, double C);
-void calculate_first_phi(const struct svm_problem *prob, Qfloat **Q_ij, int *index_M, int count_M,  int *index_A, int count_A, int *index_R, int count_R, double *alpha, double C, int *perm, double *first_phi);
-
-void calculate_second_phi(const struct svm_problem *prob, Qfloat **Q_ij, int *index_M, int count_M,  int *index_A, int count_A, int *index_R, int count_R, double *alpha, double C, int *perm, double* first_phi, double *second_phi);
 
 void approximate_solution(const struct svm_problem *prob, const struct svm_parameter *param, int *index_M, int count_M, int *index_O, int count_O, int *index_I, int count_I, int *index_A, int count_A, int *index_R, int count_R, Qfloat **Q_ij, double *alpha, int *perm, double rho, double* alpha_St);
 
