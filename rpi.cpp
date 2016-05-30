@@ -155,6 +155,48 @@ void calculate_Q(const struct svm_problem *prob, const struct svm_parameter *par
 	}
 }
 
+// calculate Q_ij
+void calculate_Kernel(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat ** all_K)
+{
+	switch(param->svm_type)
+	{
+		case C_SVC:
+		{
+			int l=prob->l;
+			schar *y = new schar[l];
+			            
+        	for(int i=0;i<l;i++)             
+        	{
+				if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;             
+			}   
+
+			for (int i = 0; i < l; ++i)
+			{
+				for (int j = 0; j < l; ++j)
+				{
+					all_K[i][j] = (Qfloat)(kernel_function(prob->x[i], prob->x[j], *param));
+				}
+			}
+			
+			delete[] y;
+		}
+			// solve_c_svc(prob,param,alpha,&si,Cp,Cn);
+			break;
+		case NU_SVC:
+			// solve_nu_svc(prob,param,alpha,&si);
+			break;
+		case ONE_CLASS:
+			// solve_one_class(prob,param,alpha,&si);
+			break;
+		case EPSILON_SVR:
+			// solve_epsilon_svr(prob,param,alpha,&si);
+			break;
+		case NU_SVR:
+			// solve_nu_svr(prob,param,alpha,&si);
+			break;
+	}
+}
+
 double calculate_fx(int xi, const struct svm_problem *prob, const struct svm_parameter *param, double *alpha, double rho)
 {
 	// xi must be permutated
@@ -513,7 +555,7 @@ void calculate_gi(const struct svm_problem *prob, const struct svm_parameter *pa
 
 
 // find the index
-int find_St_index(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int Sr_i, double *f_i, int *index_A, int count_A, int * valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho)
+int find_St_index(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha, int Sr_i, double *f_i, int *index_A, int count_A, int * valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho)
 {
 	// printf(">>>>>>>>>>>>> get into find_St_index\n");
 	int min_violation = INT_MAX;
@@ -532,15 +574,15 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 			continue;
 		}
 		count_loop++;
-		// upper_v = upper_violation(prob, param, all_alpha, Sr_i, index_A[i], f_i, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, perm, rho);
-		// lower_v = lower_violation(prob, param, all_alpha, Sr_i, index_A[i], f_i, index_X1, count_X1, index_X4, count_X4, index_X5, count_X5, perm, rho);
+
 
 		violations = 0;
 		compare_fi = 0;
 		for (int i = 0; i < count_X1; ++i)
 		{
 			// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d\n", i, index_X1[i], perm[index_X1[i]]);
-			compare_fi = prob->y[perm[index_X1[i]]]*f_i[perm[index_X1[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[index_A[a]]], *param);
+			// compare_fi = prob->y[perm[index_X1[i]]]*f_i[perm[index_X1[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[index_A[a]]], *param);
+			compare_fi = prob->y[perm[index_X1[i]]]*f_i[perm[index_X1[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X1[i]]][perm[Sr_i]] + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X1[i]]][perm[index_A[a]]];
 			if(compare_fi<rho)
 			{
 				// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X1[i], perm[index_X1[i]], compare_fi, violations);
@@ -553,7 +595,8 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 		for (int i = 0; i < count_X2; ++i)
 		{
 			// printf("i = %d index_X2[i] = %d perm[index_X2[i]] = %d\n", i, index_X2[i], perm[index_X2[i]]);
-			compare_fi = prob->y[perm[index_X2[i]]]*f_i[perm[index_X2[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[perm[index_A[a]]], *param);
+			// compare_fi = prob->y[perm[index_X2[i]]]*f_i[perm[index_X2[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[perm[index_A[a]]], *param);
+			compare_fi = prob->y[perm[index_X2[i]]]*f_i[perm[index_X2[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X2[i]]][perm[Sr_i]] + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X2[i]]][perm[index_A[a]]];
 			if(compare_fi<rho)
 			{
 				// printf("i = %d index_X2[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X2[i], perm[index_X2[i]], compare_fi, violations);
@@ -564,7 +607,8 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 		for (int i = 0; i < count_X3; ++i)
 		{
 			// printf("i = %d index_X3[i] = %d perm[index_X3[i]] = %d\n", i, index_X3[i], perm[index_X3[i]]);
-			compare_fi = prob->y[perm[index_X3[i]]]*f_i[perm[index_X3[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[perm[index_A[a]]], *param);
+			// compare_fi = prob->y[perm[index_X3[i]]]*f_i[perm[index_X3[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[perm[index_A[a]]], *param);
+			compare_fi = prob->y[perm[index_X3[i]]]*f_i[perm[index_X3[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X3[i]]][perm[Sr_i]] + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X3[i]]][perm[index_A[a]]];
 			if(compare_fi<rho)
 			{
 				// printf("i = %d index_X3[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X3[i], perm[index_X3[i]], compare_fi, violations);
@@ -575,7 +619,8 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 		for (int i = 0; i < count_X4; ++i)
 		{
 			// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d\n", i, index_X4[i], perm[index_X4[i]]);
-			compare_fi = prob->y[perm[index_X4[i]]]*f_i[perm[index_X4[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[perm[index_A[a]]], *param);
+			// compare_fi = prob->y[perm[index_X4[i]]]*f_i[perm[index_X4[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[perm[index_A[a]]], *param);
+			compare_fi = prob->y[perm[index_X4[i]]]*f_i[perm[index_X4[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X4[i]]][perm[Sr_i]] + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X4[i]]][perm[index_A[a]]];
 			if(compare_fi>rho)
 			{
 				// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d compare_fi = %lf violations = %d\n", i, index_X4[i], perm[index_X4[i]], compare_fi, violations);
@@ -586,7 +631,8 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 		for (int i = 0; i < count_X5; ++i)
 		{
 			// printf("i = %d index_X5[i] = %d perm[index_X5[i]] = %d\n", i, index_X5[i], perm[index_X5[i]]);
-			compare_fi = prob->y[perm[index_X5[i]]]*f_i[perm[index_X5[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[perm[index_A[a]]], *param);
+			// compare_fi = prob->y[perm[index_X5[i]]]*f_i[perm[index_X5[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[perm[index_A[a]]], *param);
+			compare_fi = prob->y[perm[index_X5[i]]]*f_i[perm[index_X5[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X5[i]]][perm[Sr_i]] + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*all_K[perm[index_X5[i]]][perm[index_A[a]]];
 			if(compare_fi>rho)
 			{
 				// printf("i = %d index_X5[i] = %d perm[index_X5[i]] = %d compare_fi = %lf violations = %d\n", i, index_X5[i], perm[index_X5[i]], compare_fi, violations);
@@ -612,11 +658,145 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 
 	// printf("count_loop = %d\n", count_loop);
 	// printf("<<<<<<<<<<<<< get out of find_St_index\n\n");
-	printf("result = %d\n", result);
+	// printf("result = %d\n", result);
 	return result;
 }
 
+void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha, int *index_R,  int count_R, int *valid_0, double *f_i, int *index_A, int count_A, int *valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho, double* alpha_t)
+{
+	int min_violation = INT_MAX;
+	int result = -1;
+	int min_index = -1;
 
+	int violations = 0;
+	double compare_fi = 0;
+	int tmp_index = -1;
+	int tmp_perm_sr = -1;
+	int tmp_perm_ia = -1;
+
+	for (int sri = 0; sri < count_R; ++sri)
+		{
+			if(valid_0[sri]==1)
+			{
+				// record_R++;
+				continue;
+			}
+			min_violation = INT_MAX;
+			result = -1;
+			min_index = -1;
+
+			violations = 0;
+			compare_fi = 0;
+
+			for (int a = 0; a < count_A; ++a)
+			{
+				if(valid_A[a]==0)
+				{
+					continue;
+				}
+				// count_loop++;
+
+				violations = 0;
+				compare_fi = 0;
+				tmp_perm_sr = perm[index_R[sri]];
+				tmp_perm_ia = perm[index_A[a]];
+
+				for (int i = 0; i < count_X1; ++i)
+				{
+					// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d\n", i, index_X1[i], perm[index_X1[i]]);
+					// compare_fi = prob->y[perm[index_X1[i]]]*f_i[perm[index_X1[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[index_A[a]]], *param);
+					tmp_index = perm[index_X1[i]];
+
+					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
+					if(compare_fi<rho)
+					{
+						// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X1[i], perm[index_X1[i]], compare_fi, violations);
+						violations++;
+					}
+				}
+
+				// violations *= 2;
+
+				for (int i = 0; i < count_X2; ++i)
+				{
+					// printf("i = %d index_X2[i] = %d perm[index_X2[i]] = %d\n", i, index_X2[i], perm[index_X2[i]]);
+					// compare_fi = prob->y[perm[index_X2[i]]]*f_i[perm[index_X2[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[tmp_perm_ia], *param);
+					tmp_index = perm[index_X2[i]];
+
+					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
+					if(compare_fi<rho)
+					{
+						// printf("i = %d index_X2[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X2[i], perm[index_X2[i]], compare_fi, violations);
+						violations++;
+					}
+				}
+
+				for (int i = 0; i < count_X3; ++i)
+				{
+					// printf("i = %d index_X3[i] = %d perm[index_X3[i]] = %d\n", i, index_X3[i], perm[index_X3[i]]);
+					// compare_fi = prob->y[perm[index_X3[i]]]*f_i[perm[index_X3[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[tmp_perm_ia], *param);
+					tmp_index = perm[index_X3[i]];
+
+					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
+					if(compare_fi<rho)
+					{
+						// printf("i = %d index_X3[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X3[i], perm[index_X3[i]], compare_fi, violations);
+						violations++;
+					}
+				}
+
+				for (int i = 0; i < count_X4; ++i)
+				{
+					// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d\n", i, index_X4[i], perm[index_X4[i]]);
+					// compare_fi = prob->y[perm[index_X4[i]]]*f_i[perm[index_X4[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[tmp_perm_ia], *param);
+					tmp_index = perm[index_X4[i]];
+
+					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
+					if(compare_fi>rho)
+					{
+						// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d compare_fi = %lf violations = %d\n", i, index_X4[i], perm[index_X4[i]], compare_fi, violations);
+						violations++;
+					}
+				}
+
+				for (int i = 0; i < count_X5; ++i)
+				{
+					// printf("i = %d index_X5[i] = %d perm[index_X5[i]] = %d\n", i, index_X5[i], perm[index_X5[i]]);
+					// compare_fi = prob->y[perm[index_X5[i]]]*f_i[perm[index_X5[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[tmp_perm_ia], *param);
+					tmp_index = perm[index_X5[i]];
+
+					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
+					if(compare_fi>rho)
+					{
+						// printf("i = %d index_X5[i] = %d tmp_index = %d compare_fi = %lf violations = %d\n", i, index_X5[i], perm[index_X5[i]], compare_fi, violations);
+						violations++;
+					}
+				}
+
+				// printf("upper_v = %d lower_v = %d upper_v+lower_v = %d\n", upper_v, lower_v, upper_v+lower_v);
+
+				if( min_violation > violations)
+				{
+					min_index = a;
+					min_violation = violations;
+				}
+			}
+
+			if(min_index >= 0)
+			{
+				valid_A[min_index] = 0;
+				result = index_A[min_index];
+				// printf("result = %d\n", result);
+			}
+
+			// update_st = find_St_index(prob, param, all_K, all_alpha, index_R[i], f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho);
+			if(result >= 0)
+			{
+				// record_R++;
+				alpha_t[result] = all_alpha[perm[index_R[sri]]];
+			}
+		}
+}
 
 int upper_violation(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int Sr_i, int St_i, double *f_i, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *perm, double rho)
 {

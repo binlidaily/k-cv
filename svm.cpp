@@ -907,7 +907,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 	{
 		
 		// printf("active_size = %d\n", active_size);
-		printf("finally bu = -Gmax = %lf bl = Gmax2 = %lf\n", -Gmax, Gmax2);
+		// printf("finally bu = -Gmax = %lf bl = Gmax2 = %lf\n", -Gmax, Gmax2);
 		// printf("out_i = %d out_j = %d\n", out_i, out_j);
 		global_rho_origin = (Gmax2-Gmax) / 2;
 		// printf("global_rho = %lf\n", global_rho);
@@ -2670,10 +2670,38 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		free(subprob.y);
 	} // end of first round
 
+	Qfloat **all_K = new Qfloat*[l];
 
+	for(int i=0;i<l;i++)
+	{
+		all_K[i] = new Qfloat[l];
+	}
+
+	calculate_Kernel(prob, param, all_K);
 
 	double *f_i = new double[prob->l];
 	calculate_gi(prob, param, all_alpha, begin_A, end_A, perm, f_i);
+
+
+	// Set X1
+	int *valid_X1 = new int[l];
+	int count_X1 = 0;
+
+	// Set X2
+	int *valid_X2 = new int[l];
+	int count_X2 = 0;
+
+	// Set X3
+	int *valid_X3 = new int[l];
+	int count_X3 = 0;
+
+	// Set X4
+	int *valid_X4 = new int[l];
+	int count_X4 = 0;
+
+	// Set X5
+	int *valid_X5 = new int[l];
+	int count_X5 = 0;
 
 
 	double time_approximate = 0;
@@ -2712,24 +2740,24 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		// end--> Set A
 
 		// Set X1
-		int *valid_X1 = new int[l];
-		int count_X1 = 0;
+		// *valid_X1 = new int[l];
+		count_X1 = 0;
 
 		// Set X2
-		int *valid_X2 = new int[l];
-		int count_X2 = 0;
+		// *valid_X2 = new int[l];
+		count_X2 = 0;
 
 		// Set X3
-		int *valid_X3 = new int[l];
-		int count_X3 = 0;
+		// *valid_X3 = new int[l];
+		count_X3 = 0;
 
 		// Set X4
-		int *valid_X4 = new int[l];
-		int count_X4 = 0;
+		// *valid_X4 = new int[l];
+		count_X4 = 0;
 
 		// Set X5
-		int *valid_X5 = new int[l];
-		int count_X5 = 0;
+		// *valid_X5 = new int[l];
+		count_X5 = 0;
 
 
 		// initialize arrays M, O, I
@@ -2798,20 +2826,20 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		find_index(l, begin_A, end_A, 0, 0, valid_X5, index_X5);
 
 		// check bu and bl
-		printf("check bu and bl\n");
-		my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
+		// printf("check bu and bl\n");
+		// my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
 		
 
 		double *alpha_t = new double[count_A];
 
 		for (int i = 0; i < count_A; ++i)
 		{
-			all_alpha[perm[index_A[i]]] = 0;
+			alpha_t[i] = 0;
 		}
 
 	
 
-		int update_st = -1;
+		// int update_st = -1;
 
 		clock_t time_start, time_end;
 		time_start = clock();
@@ -2830,31 +2858,29 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		}
 
 
-		int record_R = 0;
-		for (int i = 0; i < count_R; ++i)
-		{
-			if(valid_0[i]==1)
-			{
-				record_R++;
-				continue;
-			}
-			update_st = find_St_index(prob, param, all_alpha, index_R[i], f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho);
-			if(update_st >= 0)
-			{
-				record_R++;
-				alpha_t[update_st] = all_alpha[perm[index_R[i]]];
-			}
-		}
+		// int record_R = 0;
+		// for (int i = 0; i < count_R; ++i)
+		// {
+		// 	if(valid_0[i]==1)
+		// 	{
+		// 		record_R++;
+		// 		continue;
+		// 	}
+		// 	update_st = find_St_index(prob, param, all_K, all_alpha, index_R[i], f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho);
+		// 	if(update_st >= 0)
+		// 	{
+		// 		record_R++;
+		// 		alpha_t[update_st] = all_alpha[perm[index_R[i]]];
+		// 	}
+		// }
 		// printf("count_0 = %d count_R-count_0 = %d count_A-(count_R-count_0) = %d\n",count_0, count_R-count_0, count_A-(count_R-count_0));
-
+		// init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha, int *index_R,  int count_R, int *valid_0, int Sr_i, double *f_i, int *index_A, int count_A, int *valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho, double* alpha_t)
+		init_alpha_t(prob, param, all_K, all_alpha, index_R, count_R, valid_0, f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho, alpha_t);
 
 		time_end = clock();
 
 		// printf("-----> record_R = %d count_A = %d count_R = %d count_R-record_R = %d\n", record_R, count_A, count_R, count_R-record_R);
-		// for (int i = 0; i < count_A; ++i)
-		// {
-		// 	printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
-		// }
+		
 
 		
 		// calculate_solution(prob, param, index_M, count_M, index_O, count_O, index_I, count_I, index_A, count_A, index_R, count_R, all_Q, all_alpha, perm, global_rho, alpha_t);
@@ -2864,7 +2890,10 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 
 		// check alpha_t
 		// printf("----> alpha_t\n");
-
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
+		// }
 	
 
 		int greater = 0;
@@ -3033,19 +3062,14 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
 		svm_free_and_destroy_model(&submodel);
 
-		delete[] alpha_t;
+		delete [] alpha_t;
 		delete [] index_X5;
 		delete [] index_X4;
 		delete [] index_X3;
 		delete [] index_X2;
 		delete [] index_X1;
-		delete [] valid_X5;
-		delete [] valid_X4;
-		delete [] valid_X3;
-		delete [] valid_X2;
-		delete [] valid_X1;
-		delete[] index_A;
-		delete[] index_R;
+		delete [] index_A;
+		delete [] index_R;
 
 		free(subprob.x);
 		free(subprob.y);
@@ -3055,12 +3079,17 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 	printf("iterations_check = %d\n", iterations_check);
 
 	// delete[] fx;
-	// for(int i=0;i<l;i++)
-	// { 
-	// 	// free(all_Q[i]);
-	// 	delete[] all_Q[i];
-	// }
-	// delete[] all_Q;
+	for(int i=0;i<l;i++)
+	{ 
+		// free(all_Q[i]);
+		delete[] all_K[i];
+	}
+	delete[] all_K;
+	delete [] valid_X5;
+	delete [] valid_X4;
+	delete [] valid_X3;
+	delete [] valid_X2;
+	delete [] valid_X1;
 	delete[] all_alpha;
 	free(fold_start);
 	free(perm);
