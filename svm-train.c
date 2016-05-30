@@ -190,7 +190,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	cross_validation = 0;
 
 	// rpi
-	param.rpi = 0;
+	param.rpi = 1;
 
 
 	// parse options

@@ -21,8 +21,13 @@ int iterations_check = 0;
 
 // record global_rho
 double global_rho = 0;
+double global_rho_origin = 0;
 double tol_equal = 0.000001;
+double global_bu = 0;
+double global_bl = 0;
 
+// double *g_i;
+// bool g_i_valid = true;
 
 int libsvm_version = LIBSVM_VERSION;
 typedef float Qfloat;
@@ -485,7 +490,7 @@ void Solver::reconstruct_gradient()
 	int nr_free = 0;
 
 	for(j=active_size;j<l;j++)
-		G[j] = G_bar[j] + p[j];
+		G[j] = G_bar[j] + p[j];		//p[j]=y
 
 	for(j=0;j<active_size;j++)
 		if(is_free(j))
@@ -521,6 +526,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		   double *alpha_, double Cp, double Cn, double eps,
 		   SolutionInfo* si, int shrinking)
 {
+	printf("			>>>>>>>>> get into Solve\n");
 	this->l = l;
 	this->Q = &Q;
 	QD=Q.get_QD();
@@ -790,8 +796,9 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 	info("\noptimization finished, #iter = %d\n",iter);
 
 	// sum of iter
-	// iterations_check += iter;
+	iterations_check += iter;
 
+	printf("			<<<<<<<<<<< get into Solve\n");
 	delete[] p;
 	delete[] y;
 	delete[] alpha;
@@ -816,6 +823,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 	int Gmin_idx = -1;
 	double obj_diff_min = INF;
 
+	// find the min in X_upper, |bu| = |Gmax|
 	for(int t=0;t<active_size;t++)
 		if(y[t]==+1)	
 		{
@@ -827,7 +835,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 				}
 		}
 		else
-		{
+		{ //y[t]==-1
 			if(!is_lower_bound(t))
 				if(G[t] >= Gmax)
 				{
@@ -841,6 +849,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 	if(i != -1) // NULL Q_i not accessed: Gmax=-INF if i=-1
 		Q_i = Q->get_Q(i,active_size);
 
+	// find the maxima in X_lower, |bl| = |Gmax2|
 	for(int j=0;j<active_size;j++)
 	{
 		if(y[j]==+1)
@@ -893,9 +902,19 @@ int Solver::select_working_set(int &out_i, int &out_j)
 		}
 	}
 
-	if(Gmax+Gmax2 < eps || Gmin_idx == -1)
-		return 1;
 
+	if(Gmax+Gmax2 < eps || Gmin_idx == -1)
+	{
+		
+		// printf("active_size = %d\n", active_size);
+		printf("finally bu = -Gmax = %lf bl = Gmax2 = %lf\n", -Gmax, Gmax2);
+		// printf("out_i = %d out_j = %d\n", out_i, out_j);
+		global_rho_origin = (Gmax2-Gmax) / 2;
+		// printf("global_rho = %lf\n", global_rho);
+		return 1;
+	}
+
+	// printf("out_i = %d out_j = %d\n", out_i, out_j);
 	out_i = Gmax_idx;
 	out_j = Gmin_idx;
 	return 0;
@@ -1012,6 +1031,8 @@ double Solver::calculate_rho()
 		}
 	}
 
+	// printf("nr_free = %d\n", nr_free);
+	// printf("ub = %lf lb = %lf\n", ub, lb);
 	if(nr_free>0)
 		r = sum_free/nr_free;
 	else
@@ -1495,7 +1516,7 @@ static void solve_c_svc_rpi(
 	const svm_problem *prob, const svm_parameter* param,
 	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn)
 {
-	printf("		>>>>>>>>>> get into solve_c_svc_origin\n");
+	printf("		>>>>>>>>>> get into solve_c_svc_rpi\n");
 	int l = prob->l;
 	double *minus_ones = new double[l];
 	schar *y = new schar[l];
@@ -1542,7 +1563,7 @@ static void solve_c_svc_rpi(
 
 	delete[] minus_ones;
 	delete[] y;
-	printf("		<<<<<<<<< get out of solve_c_svc_origin\n");
+	printf("		<<<<<<<<< get out of solve_c_svc_rpi\n");
 }
 
 static void solve_nu_svc(
@@ -2622,8 +2643,6 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 
 		for (int i = begin_A; i < subprob.l; ++i)
 		{
-			// if(i==200)
-			// 	printf("check_KKT = %lf\n", check_KKT);
 			all_alpha[perm[end_A+i]] = alpha_1st[i];
 			check_KKT += subprob.y[i]*all_alpha[perm[end_A+i]];
 		}
@@ -2633,6 +2652,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		time_svm_train += (double)(end_train-start_train)/CLOCKS_PER_SEC;
 		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, 1);
 
+		global_rho = global_rho_origin;
 		if(param->probability && 
 		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
 		{
@@ -2650,40 +2670,38 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		free(subprob.y);
 	} // end of first round
 
-	// all_Q saves all Q_ij
-	Qfloat **all_Q = new Qfloat*[l];
-	for (int i = 0; i < l; ++i)
-	{
-		all_Q[i] = new Qfloat[l];
-	}
 
-	calculate_Q(prob, param, all_Q);
 
-	double *fx = new double[l];
-	for (int i = 0; i < l; ++i)
-	{
-		fx[i] = calculate_fx(perm[i], prob, param, all_alpha, global_rho);
-	}
+	double *f_i = new double[prob->l];
+	calculate_gi(prob, param, all_alpha, begin_A, end_A, perm, f_i);
 
+
+	double time_approximate = 0;
 	for(i=1;i<nr_fold;i++)
 	{
 		// Set R, remove testing subset in current round
 		int begin = fold_start[i];
 		int end = fold_start[i+1];
 		int *index_R = new int[end-begin];
+		// int *valid_R = new int[end-begin];
 		for (int i = 0; i < end-begin; ++i)
 		{
 			index_R[i] = begin+i;
+			// valid_R[i] = 1;
 		}
 		int count_R = end-begin;
 		// end--> Set R
 
 		// Set A, record the valid indexes in A
-		int *index_A = new int[end_A-begin_A];
 		int count_A = end_A-begin_A;
+		int *index_A = new int[count_A];
+		int * valid_A = new int[count_A];
+
+		printf("count_R - count_A = %d\n", count_R-count_A);
 		for(int a=0;a<end_A-begin_A;a++)
 		{
 			index_A[a]=begin_A+a;
+			valid_A[a] = 1;
 		}
 
 		// initialize the alpha to zero in set A
@@ -2693,82 +2711,161 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		}
 		// end--> Set A
 
-		// Set M
-		int *valid_M = new int[l];
-		int count_M = 0;
+		// Set X1
+		int *valid_X1 = new int[l];
+		int count_X1 = 0;
 
-		// Set O
-		int *valid_O = new int[l];
-		int count_O = 0;
+		// Set X2
+		int *valid_X2 = new int[l];
+		int count_X2 = 0;
 
-		// Set I
-		int *valid_I = new int[l];
-		int count_I = 0;
+		// Set X3
+		int *valid_X3 = new int[l];
+		int count_X3 = 0;
+
+		// Set X4
+		int *valid_X4 = new int[l];
+		int count_X4 = 0;
+
+		// Set X5
+		int *valid_X5 = new int[l];
+		int count_X5 = 0;
+
 
 		// initialize arrays M, O, I
 		for (int i = 0; i < l; ++i)
 		{
-			valid_M[i]=0;
-			valid_O[i]=0;
-			valid_I[i]=0;
+			valid_X1[i]=0;
+			valid_X2[i]=0;
+			valid_X3[i]=0;
+			valid_X4[i]=0;
+			valid_X5[i]=0;
 		}
+
+		
 
 		// find the corresponding indexes in M, O, I
 		for(int fi=0;fi<l;fi++)
 		{
-			if(fi>=begin && fi<end)
-			{
-				continue;
-			}
-
 			if(fi>=begin_A && fi<end_A)
 			{
 				continue;
 			}
-			
-			// calculate f(x_i), use all data
-			// double fxi = calculate_fx(perm[fi], prob, param, all_alpha, global_rho);
 
-			double condition = prob->y[perm[fi]]*fx[fi];
-			// origin perm
-
-			// Conditional jump or move depends on uninitialised value(s)
-			if( condition >= 1-tol_equal && condition <= 1+tol_equal )
-			{// M
-				valid_M[fi] = 1;
-				count_M++;
+			if( all_alpha[perm[fi]]>0-tol_equal && all_alpha[perm[fi]]<0+tol_equal )
+			{
+				if(prob->y[perm[fi]]>0)
+				{
+					valid_X2[fi] = 1;
+					count_X2++;
+				}
+				else
+				{
+					valid_X5[fi] = 1;
+					count_X5++;
+				}
 			}
-			else if(condition > 1+tol_equal)
-			{// O
-				valid_O[fi] = 1;
-				count_O++;
+			else if( all_alpha[perm[fi]]>param->C-tol_equal && all_alpha[perm[fi]]<param->C+tol_equal )
+			{
+				if(prob->y[perm[fi]]>0)
+				{
+					valid_X3[fi] = 1;
+					count_X3++;
+				}
+				else
+				{
+					valid_X4[fi] = 1;
+					count_X4++;
+				}
 			}
-			else
-			{// I
-				valid_I[fi] = 1;
-				count_I++;
+			else if(all_alpha[perm[fi]]>0+tol_equal && all_alpha[perm[fi]]<param->C+tol_equal)
+			{
+				valid_X1[fi] = 1;
+				count_X1++;
 			}
 		}
 
-		int *index_M = new int[count_M];
-		int *index_O = new int[count_O];
-		int *index_I = new int[count_I];
+		int *index_X1 = new int[count_X1];
+		int *index_X2 = new int[count_X2];
+		int *index_X3 = new int[count_X3];
+		int *index_X4 = new int[count_X4];
+		int *index_X5 = new int[count_X5];
 
-		find_index(l, begin_A, end_A, begin, end, valid_M, index_M);
-		find_index(l, begin_A, end_A, begin, end, valid_O, index_O);
-		find_index(l, begin_A, end_A, begin, end, valid_I, index_I);
+		find_index(l, begin_A, end_A, 0, 0, valid_X1, index_X1);
+		find_index(l, begin_A, end_A, 0, 0, valid_X2, index_X2);
+		find_index(l, begin_A, end_A, 0, 0, valid_X3, index_X3);
+		find_index(l, begin_A, end_A, 0, 0, valid_X4, index_X4);
+		find_index(l, begin_A, end_A, 0, 0, valid_X5, index_X5);
 
-		double * alpha_t = new double[count_A];
+		// check bu and bl
+		printf("check bu and bl\n");
+		my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
+		
+
+		double *alpha_t = new double[count_A];
+
+		for (int i = 0; i < count_A; ++i)
+		{
+			all_alpha[perm[index_A[i]]] = 0;
+		}
+
+	
+
+		int update_st = -1;
+
 		clock_t time_start, time_end;
 		time_start = clock();
-		calculate_solution(prob, param, index_M, count_M, index_O, count_O, index_I, count_I, index_A, count_A, index_R, count_R, all_Q, all_alpha, perm, global_rho, alpha_t);
+
+		int *valid_0 = new int[count_R];
+		int count_0 = 0;
+
+		for (int i = 0; i < count_R; ++i)
+		{
+			valid_0[i] = 0;
+			if(all_alpha[perm[index_R[i]]]>=0-tol_equal && all_alpha[perm[index_R[i]]]<=0+tol_equal)
+			{
+				valid_0[i] = 1;
+				count_0++;
+			}
+		}
+
+
+		int record_R = 0;
+		for (int i = 0; i < count_R; ++i)
+		{
+			if(valid_0[i]==1)
+			{
+				record_R++;
+				continue;
+			}
+			update_st = find_St_index(prob, param, all_alpha, index_R[i], f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho);
+			if(update_st >= 0)
+			{
+				record_R++;
+				alpha_t[update_st] = all_alpha[perm[index_R[i]]];
+			}
+		}
+		// printf("count_0 = %d count_R-count_0 = %d count_A-(count_R-count_0) = %d\n",count_0, count_R-count_0, count_A-(count_R-count_0));
+
+
 		time_end = clock();
-		// time_comsuming += (double)(time_end-time_start)/CLOCKS_PER_SEC;
-		printf("elasped time for approximate_solution() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
+
+		// printf("-----> record_R = %d count_A = %d count_R = %d count_R-record_R = %d\n", record_R, count_A, count_R, count_R-record_R);
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
+		// }
+
+		
+		// calculate_solution(prob, param, index_M, count_M, index_O, count_O, index_I, count_I, index_A, count_A, index_R, count_R, all_Q, all_alpha, perm, global_rho, alpha_t);
+		
+		time_approximate += (double)(time_end-time_start)/CLOCKS_PER_SEC;
+		printf("elasped time for find_St_index() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
 
 		// check alpha_t
 		// printf("----> alpha_t\n");
 
+	
 
 		int greater = 0;
 		int smaller = 0;
@@ -2776,29 +2873,6 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		double sum_a = 0;
 		for (int i = 0; i < count_A; ++i)
 		{
-			// printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-			// sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
-			// method 1
-			// if(alpha_t[i]<0&&prob->y[perm[index_A[i]]]<0)
-			// {
-			// 	greater++;
-			// }
-			// else if(alpha_t[i]<0&&prob->y[perm[index_A[i]]]>0)
-			// {
-			// 	smaller++;
-			// }
-			
-			// method 2
-			// if(alpha_t[i]<0)
-			// {
-			// 	alpha_t[i] = 0;
-			// }
-			// else if(alpha_t[i]>variable_C)
-			// {
-			// 	alpha_t[i]=variable_C;
-			// }
-			// sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
-
 			// method 3
 			if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
 			{
@@ -2812,13 +2886,6 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 			}
 			sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
 		}
-
-		// check alpha_t after adjusting
-		// printf("after adjusting\n");
-		// for (int i = 0; i < count_A; ++i)
-		// {
-		// 	printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-		// }
 
 		double sum_r = 0;
 		for (int i = 0; i < count_R; ++i)
@@ -2967,30 +3034,33 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		svm_free_and_destroy_model(&submodel);
 
 		delete[] alpha_t;
-		delete[] index_I;
-		delete[] index_O;
-		delete[] index_M;
-		delete[] valid_I;
-		delete[] valid_O;
-		delete[] valid_M;
+		delete [] index_X5;
+		delete [] index_X4;
+		delete [] index_X3;
+		delete [] index_X2;
+		delete [] index_X1;
+		delete [] valid_X5;
+		delete [] valid_X4;
+		delete [] valid_X3;
+		delete [] valid_X2;
+		delete [] valid_X1;
 		delete[] index_A;
 		delete[] index_R;
-
-
 
 		free(subprob.x);
 		free(subprob.y);
 	}		
-	printf("time consuming for svm_train() in all k fold: %lf\n", time_svm_train);
+	printf("\ntime consuming for svm_train() in all k fold: %lf\n", time_svm_train);
+	printf("time consuming for initialize alpha in all k-1 fold: %lf\n", time_approximate);
 	printf("iterations_check = %d\n", iterations_check);
 
-	delete[] fx;
-	for(int i=0;i<l;i++)
-	{
-		// free(all_Q[i]);
-		delete[] all_Q[i];
-	}
-	delete[] all_Q;
+	// delete[] fx;
+	// for(int i=0;i<l;i++)
+	// { 
+	// 	// free(all_Q[i]);
+	// 	delete[] all_Q[i];
+	// }
+	// delete[] all_Q;
 	delete[] all_alpha;
 	free(fold_start);
 	free(perm);
@@ -3847,7 +3917,7 @@ svm_model *svm_train_alpha(const svm_problem *prob, const svm_parameter *param, 
 				}
 
 				// record the rho
-				global_rho = f[p].rho;
+				// global_rho = f[p].rho;
 
 				for(k=0;k<ci;k++)
 					if(!nonzero[si+k] && fabs(f[p].alpha[k]) > 0)
