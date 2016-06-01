@@ -2707,6 +2707,8 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 	double time_approximate = 0;
 	for(i=1;i<nr_fold;i++)
 	{
+		clock_t partition_start = clock();
+
 		// Set R, remove testing subset in current round
 		int begin = fold_start[i];
 		int end = fold_start[i+1];
@@ -2819,7 +2821,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		int *index_X4 = new int[count_X4];
 		int *index_X5 = new int[count_X5];
 
-		find_index(l, begin_A, end_A, 0, 0, valid_X1, index_X1);
+		// find_index(l, begin_A, end_A, 0, 0, valid_X1, index_X1);
 		find_index(l, begin_A, end_A, 0, 0, valid_X2, index_X2);
 		find_index(l, begin_A, end_A, 0, 0, valid_X3, index_X3);
 		find_index(l, begin_A, end_A, 0, 0, valid_X4, index_X4);
@@ -2829,6 +2831,11 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		// printf("check bu and bl\n");
 		// my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
 		
+		clock_t partition_end = clock();
+		printf("elasped time for partition is: %lfs\n", (double)(partition_end-partition_start)/CLOCKS_PER_SEC);
+
+
+
 
 		double *alpha_t = new double[count_A];
 
@@ -2870,10 +2877,12 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		printf("elasped time for find_St_index() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
 
 		// check alpha_t
-		printf("----> alpha_t\n");
+		// printf("----> alpha_t\n");
 		for (int i = 0; i < count_A; ++i)
 		{
-			printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
+			// printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
+			all_alpha[perm[index_A[i]]] = alpha_t[i];
+
 		}
 	
 		// adjust_sum_ya(prob, param, all_alpha, alpha_t, index_A, count_A, index_R, count_R, perm);
@@ -2943,6 +2952,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 	}		
 	printf("\ntime consuming for svm_train() in all k fold: %lf\n", time_svm_train);
 	printf("time consuming for initialize alpha in all k-1 fold: %lf\n", time_approximate);
+	printf("time consuming for initialize alpha and svm_train: %lf\n", time_svm_train+time_approximate);
 	printf("iterations_check = %d\n", iterations_check);
 
 	// delete[] fx;

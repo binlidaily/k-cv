@@ -723,28 +723,28 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 			tmp_st_ya = prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr];
 
 			skip = false;
-			for (int i = 0; i < count_X1; ++i)
-			{
+			// for (int i = 0; i < count_X1; ++i)
+			// {
 				
-				tmp_index = perm[index_X1[i]];
+			// 	tmp_index = perm[index_X1[i]];
 
-				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+			// 	compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
 				
-				if(compare_fi<rho)
-				{
-					violations++;
-					if(violations>min_violation)
-					{
-						skip = true;
-						break;
-					}
-				}
-			}
+			// 	if(compare_fi<rho)
+			// 	{
+			// 		violations++;
+			// 		if(violations>min_violation)
+			// 		{
+			// 			skip = true;
+			// 			break;
+			// 		}
+			// 	}
+			// }
 
-			if(skip)
-			{
-				continue;
-			}
+			// if(skip)
+			// {
+			// 	continue;
+			// }
 			// violations *= 2;
 
 			for (int i = 0; i < count_X2; ++i)
@@ -835,7 +835,7 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 				continue;
 			}
 
-			printf("min_violation vs violations: min_violation = %d violations = %d\n", min_violation, violations);
+			// printf("min_violation vs violations: min_violation = %d violations = %d\n", min_violation, violations);
 
 			if( min_violation >= violations)
 			{
@@ -846,27 +846,27 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 			count_loop++;
 		}
 
-		printf("count_loop = %d\n", count_loop);
-		printf("all data\n");
-		for (int i = 0; i < fixed_count_A; ++i)
-		{
-			printf("i = %d index_A[i] = %d\n", i, index_A[i]);
-		}
+		// printf("count_loop = %d\n", count_loop);
+		// printf("all data\n");
+		// for (int i = 0; i < fixed_count_A; ++i)
+		// {
+		// 	printf("i = %d index_A[i] = %d\n", i, index_A[i]);
+		// }
 		
-		printf("min_index = %d \n", min_index);
+		// printf("min_index = %d \n", min_index);
 		if(min_index >= 0)
 		{
 			// valid_A[min_index] = 0;
 			result = index_A[min_index];
 			// result = min_index;
-			printf(" result = %d\n", result);
+			// printf(" result = %d\n", result);
 			if(min_index == count_A-1)
 			{
-				printf("min_index == count_A-1\n");
+				// printf("min_index == count_A-1\n");
 				count_A--;
 			}
 			else{
-				printf("else\n");
+				// printf("else\n");
 				tmp_swap_a = index_A[min_index];
 				index_A[min_index] = index_A[count_A-1];
 				index_A[count_A-1] = tmp_swap_a;
@@ -880,13 +880,13 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 			negtive++;
 		}
 
-		printf("\n");
-		printf("after ajusting\n");
-		for (int i = 0; i < count_A; ++i)
-		{
-			printf("i = %d index_A[i] = %d\n", i, index_A[i]);
-		}
-		printf("\n");
+		// printf("\n");
+		// printf("after ajusting\n");
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	printf("i = %d index_A[i] = %d\n", i, index_A[i]);
+		// }
+		// printf("\n");
 
 		
 		if(result >= 0)
@@ -895,7 +895,7 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 			alpha_t[result] = all_alpha[perm[index_R[sri]]];
 		}
 	}
-	printf("negtive = %d count_R-fixed_count_A = %d\n", negtive, count_R-fixed_count_A);
+	// printf("negtive = %d count_R-fixed_count_A = %d\n", negtive, count_R-fixed_count_A);
 	// reconstruct index_A
 	for (int i = 0; i < fixed_count_A; ++i)
 	{
@@ -908,19 +908,24 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 	// int c_c = 0;
 	// double average = 0;
 
+	if(negtive>0)
+	{
+		return;
+	}
+
 	double sum_a = 0;
 	for (int i = 0; i < fixed_count_A; ++i)
 	{		
-		if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
-		{
-			alpha_t[i] = 0;
-			// c_0++;
-		}
-		else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
-		{
-			alpha_t[i] = param->C;
-			// c_c++;
-		}
+		// if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
+		// {
+		// 	alpha_t[i] = 0;
+		// 	// c_0++;
+		// }
+		// else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
+		// {
+		// 	alpha_t[i] = param->C;
+		// 	// c_c++;
+		// }
 		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
 	}
 
@@ -931,7 +936,11 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 	}
 
 	printf("sum_a = %lf sum_r = %lf\n", sum_a, sum_r);
-	if(sum_r>sum_a)
+	if(sum_r>sum_a-tol_equal1 && sum_r<sum_a+tol_equal1)
+	{
+		return;
+	}
+	else if(sum_r>sum_a)
 	{
 		printf("get into sum_r>sum_a\n");
 		for (int i = 0; i < fixed_count_A; ++i)
@@ -1028,16 +1037,16 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 	sum_a = 0;
 	for (int i = 0; i < fixed_count_A; ++i)
 	{		
-		if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
-		{
-			alpha_t[i] = 0;
-			// c_0++;
-		}
-		else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
-		{
-			alpha_t[i] = param->C;
-			// c_c++;
-		}
+		// if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
+		// {
+		// 	alpha_t[i] = 0;
+		// 	// c_0++;
+		// }
+		// else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
+		// {
+		// 	alpha_t[i] = param->C;
+		// 	// c_c++;
+		// }
 		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
 	}
 
