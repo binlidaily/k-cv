@@ -50,3 +50,5 @@ double calculate_bl(const struct svm_problem *prob, double *f_i, int *index_X1, 
 void my_select_working_set(const struct svm_problem *prob, const struct svm_parameter *param, int end_A, double *all_alpha, double *f_i, int *perm);
 
 void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha, int *index_R,  int count_R, int *valid_0, double *f_i, int *index_A, int count_A, int *valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho, double* alpha_t);
+
+void adjust_sum_ya(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, double *alpha_t, int *index_A, int count_A, int *index_R, int count_R, int *perm);

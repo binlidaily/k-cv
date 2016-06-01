@@ -673,129 +673,383 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 	int tmp_index = -1;
 	int tmp_perm_sr = -1;
 	int tmp_perm_ia = -1;
+	int tmp_swap_a = -1;
+	int fixed_count_A = count_A;
+	double tmp_sr_ya = 0;
+	double tmp_st_ya = 0;
+	bool skip = false;
+	int negtive = 0;
 
 	for (int sri = 0; sri < count_R; ++sri)
+	{
+		if(valid_0[sri]==1)
 		{
-			if(valid_0[sri]==1)
-			{
-				// record_R++;
-				continue;
-			}
-			min_violation = INT_MAX;
-			result = -1;
-			min_index = -1;
+			// record_R++;
+			continue;
+		}
+
+		min_violation = INT_MAX;
+		result = -1;
+		min_index = -1;
+
+		violations = 0;
+		compare_fi = 0;
+		tmp_swap_a = -1;
+
+		int count_loop = 0;
+		// count_A = fixed_count_A;
+		for (int a = 0; a < count_A; ++a)
+		{
+			// if(valid_A[a]==0)
+			// {
+			// 	continue;
+			// }
+			// printf("valid_A: %d\n", a);
 
 			violations = 0;
 			compare_fi = 0;
+			
+			tmp_perm_sr = perm[index_R[sri]];
+			tmp_perm_ia = perm[index_A[a]];
 
-			for (int a = 0; a < count_A; ++a)
+
+			if(!(prob->y[tmp_perm_sr] >= prob->y[tmp_perm_ia] - tol_equal1 && prob->y[tmp_perm_sr] <= prob->y[tmp_perm_ia] + tol_equal1))
 			{
-				if(valid_A[a]==0)
+				// printf("prob->y[tmp_perm_sr] = %lf prob->y[tmp_perm_ia] = %lf\n", prob->y[tmp_perm_sr], prob->y[tmp_perm_ia]);
+				continue;
+			}
+
+			tmp_sr_ya = prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr];
+			tmp_st_ya = prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr];
+
+			skip = false;
+			for (int i = 0; i < count_X1; ++i)
+			{
+				
+				tmp_index = perm[index_X1[i]];
+
+				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+				
+				if(compare_fi<rho)
 				{
-					continue;
-				}
-				// count_loop++;
-
-				violations = 0;
-				compare_fi = 0;
-				tmp_perm_sr = perm[index_R[sri]];
-				tmp_perm_ia = perm[index_A[a]];
-
-				for (int i = 0; i < count_X1; ++i)
-				{
-					// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d\n", i, index_X1[i], perm[index_X1[i]]);
-					// compare_fi = prob->y[perm[index_X1[i]]]*f_i[perm[index_X1[i]]] - prob->y[perm[Sr_i]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[Sr_i]], *param) + prob->y[perm[index_A[a]]]*all_alpha[perm[Sr_i]]*kernel_function(prob->x[perm[index_X1[i]]], prob->x[perm[index_A[a]]], *param);
-					tmp_index = perm[index_X1[i]];
-
-					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
-					if(compare_fi<rho)
+					violations++;
+					if(violations>min_violation)
 					{
-						// printf("i = %d index_X1[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X1[i], perm[index_X1[i]], compare_fi, violations);
-						violations++;
+						skip = true;
+						break;
 					}
-				}
-
-				// violations *= 2;
-
-				for (int i = 0; i < count_X2; ++i)
-				{
-					// printf("i = %d index_X2[i] = %d perm[index_X2[i]] = %d\n", i, index_X2[i], perm[index_X2[i]]);
-					// compare_fi = prob->y[perm[index_X2[i]]]*f_i[perm[index_X2[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X2[i]]], prob->x[tmp_perm_ia], *param);
-					tmp_index = perm[index_X2[i]];
-
-					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
-					if(compare_fi<rho)
-					{
-						// printf("i = %d index_X2[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X2[i], perm[index_X2[i]], compare_fi, violations);
-						violations++;
-					}
-				}
-
-				for (int i = 0; i < count_X3; ++i)
-				{
-					// printf("i = %d index_X3[i] = %d perm[index_X3[i]] = %d\n", i, index_X3[i], perm[index_X3[i]]);
-					// compare_fi = prob->y[perm[index_X3[i]]]*f_i[perm[index_X3[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X3[i]]], prob->x[tmp_perm_ia], *param);
-					tmp_index = perm[index_X3[i]];
-
-					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
-					if(compare_fi<rho)
-					{
-						// printf("i = %d index_X3[i] = %d perm[index_X1[i]] = %d compare_fi = %lf violations = %d\n", i, index_X3[i], perm[index_X3[i]], compare_fi, violations);
-						violations++;
-					}
-				}
-
-				for (int i = 0; i < count_X4; ++i)
-				{
-					// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d\n", i, index_X4[i], perm[index_X4[i]]);
-					// compare_fi = prob->y[perm[index_X4[i]]]*f_i[perm[index_X4[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X4[i]]], prob->x[tmp_perm_ia], *param);
-					tmp_index = perm[index_X4[i]];
-
-					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
-					if(compare_fi>rho)
-					{
-						// printf("i = %d index_X4[i] = %d perm[index_X4[i]] = %d compare_fi = %lf violations = %d\n", i, index_X4[i], perm[index_X4[i]], compare_fi, violations);
-						violations++;
-					}
-				}
-
-				for (int i = 0; i < count_X5; ++i)
-				{
-					// printf("i = %d index_X5[i] = %d perm[index_X5[i]] = %d\n", i, index_X5[i], perm[index_X5[i]]);
-					// compare_fi = prob->y[perm[index_X5[i]]]*f_i[perm[index_X5[i]]] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[tmp_perm_sr], *param) + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*kernel_function(prob->x[perm[index_X5[i]]], prob->x[tmp_perm_ia], *param);
-					tmp_index = perm[index_X5[i]];
-
-					compare_fi = prob->y[tmp_index]*f_i[tmp_index] - prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_sr] + prob->y[tmp_perm_ia]*all_alpha[tmp_perm_sr]*all_K[tmp_index][tmp_perm_ia];
-					if(compare_fi>rho)
-					{
-						// printf("i = %d index_X5[i] = %d tmp_index = %d compare_fi = %lf violations = %d\n", i, index_X5[i], perm[index_X5[i]], compare_fi, violations);
-						violations++;
-					}
-				}
-
-				// printf("upper_v = %d lower_v = %d upper_v+lower_v = %d\n", upper_v, lower_v, upper_v+lower_v);
-
-				if( min_violation > violations)
-				{
-					min_index = a;
-					min_violation = violations;
 				}
 			}
 
-			if(min_index >= 0)
+			if(skip)
 			{
-				valid_A[min_index] = 0;
-				result = index_A[min_index];
-				// printf("result = %d\n", result);
+				continue;
+			}
+			// violations *= 2;
+
+			for (int i = 0; i < count_X2; ++i)
+			{
+				
+				tmp_index = perm[index_X2[i]];
+
+				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+				if(compare_fi<rho)
+				{
+					
+					violations++;
+					if(violations>min_violation)
+					{
+						skip = true;
+						break;
+					}
+				}
 			}
 
-			// update_st = find_St_index(prob, param, all_K, all_alpha, index_R[i], f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho);
-			if(result >= 0)
+			if(skip)
 			{
-				// record_R++;
-				alpha_t[result] = all_alpha[perm[index_R[sri]]];
+				continue;
 			}
+
+			for (int i = 0; i < count_X3; ++i)
+			{
+				
+				tmp_index = perm[index_X3[i]];
+
+				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+				if(compare_fi<rho)
+				{
+					violations++;
+					if(violations>min_violation)
+					{
+						skip = true;
+						break;
+					}
+				}
+			}
+
+			if(skip)
+			{
+				continue;
+			}
+
+			for (int i = 0; i < count_X4; ++i)
+			{
+				
+				tmp_index = perm[index_X4[i]];
+
+				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+				if(compare_fi>rho)
+				{
+					violations++;
+					if(violations>min_violation)
+					{
+						skip = true;
+						break;
+					}
+				}
+			}
+
+			if(skip)
+			{
+				continue;
+			}
+
+			for (int i = 0; i < count_X5; ++i)
+			{
+				tmp_index = perm[index_X5[i]];
+
+				compare_fi = prob->y[tmp_index]*f_i[tmp_index] - tmp_sr_ya*all_K[tmp_index][tmp_perm_sr] + tmp_st_ya*all_K[tmp_index][tmp_perm_ia];
+				if(compare_fi>rho)
+				{
+					violations++;
+					if(violations>min_violation)
+					{
+						skip = true;
+						break;
+					}
+				}
+			}
+
+			if(skip)
+			{
+				continue;
+			}
+
+			printf("min_violation vs violations: min_violation = %d violations = %d\n", min_violation, violations);
+
+			if( min_violation >= violations)
+			{
+				min_index = a;
+				// printf("choose a = %d index_A[a] = %d count_loop = %d\n", a, index_A[a], count_loop);
+				min_violation = violations;
+			}
+			count_loop++;
 		}
+
+		printf("count_loop = %d\n", count_loop);
+		printf("all data\n");
+		for (int i = 0; i < fixed_count_A; ++i)
+		{
+			printf("i = %d index_A[i] = %d\n", i, index_A[i]);
+		}
+		
+		printf("min_index = %d \n", min_index);
+		if(min_index >= 0)
+		{
+			// valid_A[min_index] = 0;
+			result = index_A[min_index];
+			// result = min_index;
+			printf(" result = %d\n", result);
+			if(min_index == count_A-1)
+			{
+				printf("min_index == count_A-1\n");
+				count_A--;
+			}
+			else{
+				printf("else\n");
+				tmp_swap_a = index_A[min_index];
+				index_A[min_index] = index_A[count_A-1];
+				index_A[count_A-1] = tmp_swap_a;
+				count_A--;
+			}
+			
+			// printf("result = %d\n", result);
+		}
+		else
+		{
+			negtive++;
+		}
+
+		printf("\n");
+		printf("after ajusting\n");
+		for (int i = 0; i < count_A; ++i)
+		{
+			printf("i = %d index_A[i] = %d\n", i, index_A[i]);
+		}
+		printf("\n");
+
+		
+		if(result >= 0)
+		{
+			// record_R++;
+			alpha_t[result] = all_alpha[perm[index_R[sri]]];
+		}
+	}
+	printf("negtive = %d count_R-fixed_count_A = %d\n", negtive, count_R-fixed_count_A);
+	// reconstruct index_A
+	for (int i = 0; i < fixed_count_A; ++i)
+	{
+		index_A[i] = i;
+	}
+
+	// ================
+	// int index_N = new int[negtive];
+	// int c_0 = 0;
+	// int c_c = 0;
+	// double average = 0;
+
+	double sum_a = 0;
+	for (int i = 0; i < fixed_count_A; ++i)
+	{		
+		if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
+		{
+			alpha_t[i] = 0;
+			// c_0++;
+		}
+		else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
+		{
+			alpha_t[i] = param->C;
+			// c_c++;
+		}
+		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
+	}
+
+	double sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+
+	printf("sum_a = %lf sum_r = %lf\n", sum_a, sum_r);
+	if(sum_r>sum_a)
+	{
+		printf("get into sum_r>sum_a\n");
+		for (int i = 0; i < fixed_count_A; ++i)
+		{
+			if(prob->y[perm[index_A[i]]]>0)
+			{
+				if((!(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))&&(alpha_t[i]+sum_r-sum_a<=param->C))
+				{
+					alpha_t[i] += sum_r-sum_a;
+					break;
+				}
+			}
+			else
+			{
+				if((!(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))&&(alpha_t[i]-(sum_r-sum_a)>=0))
+				{
+					alpha_t[i] -= sum_r-sum_a;
+					break;
+				}
+			}
+			
+		}
+		// average = (sum_r-sum_a)/negtive;
+		// for (int i = 0; i < fixed_count_A; ++i)
+		// {		
+		// 	if((alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001)))
+		// 	{
+		// 		if(prob->y[perm[index_A[i]]]>0)
+		// 		{
+		// 			alpha_t[i] = sum_r-sum_a;
+		// 			break;
+		// 		}
+				
+				
+		// 		// c_0++;
+		// 	}
+		// 	else if(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001)
+		// 	{
+		// 		if(prob->y[perm[index_A[i]]]<0)
+		// 		{
+		// 			alpha_t[i] -= sum_r-sum_a;
+		// 			break;
+		// 		}
+		// 	}
+		// }
+	}
+	else if(sum_r<sum_a)
+	{
+		printf("get into sum_r<sum_a\n");
+		for (int i = 0; i < fixed_count_A; ++i)
+		{
+			if(prob->y[perm[index_A[i]]]>0)
+			{
+				if((!(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))&&(alpha_t[i]-(sum_a-sum_r)>=0))
+				{
+					alpha_t[i] -= sum_a-sum_r;
+					break;
+				}
+			}
+			else
+			{
+				if((!(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))&&(alpha_t[i]+sum_a-sum_r<=param->C))
+				{
+					alpha_t[i] += sum_a-sum_r;
+					break;
+				}
+			}
+
+		}
+		// for (int i = 0; i < fixed_count_A; ++i)
+		// {		
+		// 	if((alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001)))
+		// 	{
+		// 		if(prob->y[perm[index_A[i]]]<0)
+		// 		{
+		// 			alpha_t[i] = sum_a-sum_r;
+		// 			break;
+		// 		}
+				
+				
+		// 		// c_0++;
+		// 	}
+		// 	else if(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001)
+		// 	{
+		// 		if(prob->y[perm[index_A[i]]]>0)
+		// 		{
+		// 			alpha_t[i] -= sum_a-sum_r;
+		// 			break;
+		// 		}
+		// 	}
+		// }
+	}
+
+	sum_a = 0;
+	for (int i = 0; i < fixed_count_A; ++i)
+	{		
+		if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
+		{
+			alpha_t[i] = 0;
+			// c_0++;
+		}
+		else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
+		{
+			alpha_t[i] = param->C;
+			// c_c++;
+		}
+		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
+	}
+
+	sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+
+	printf("balance two sum: sum_a = %lf sum_r = %lf sum_a-sum_r = %lf\n", sum_a, sum_r, sum_a-sum_r);
+
+
 }
 
 int upper_violation(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int Sr_i, int St_i, double *f_i, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *perm, double rho)
@@ -1137,4 +1391,127 @@ void my_select_working_set(const struct svm_problem *prob, const struct svm_para
 
 	// out_i = Gmax_idx;
 	// out_j = Gmin_idx;
+}
+
+void adjust_sum_ya(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, double *alpha_t, int *index_A, int count_A, int *index_R, int count_R, int *perm)
+{
+	int greater = 0;
+	int smaller = 0;
+	int count_for_average = 0;
+	double sum_a = 0;
+	// double tmp_a_t = 0;
+	for (int i = 0; i < count_A; ++i)
+	{
+		// method 3
+		// tmp_a_t = alpha_t[i];
+		
+		if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
+		{
+			alpha_t[i] = 0;
+			count_for_average++;
+		}
+		else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
+		{
+			alpha_t[i] = param->C;
+			count_for_average++;
+		}
+		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
+	}
+
+	double sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+
+	// check if these two sums are equal
+	printf("Compare sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
+
+	if(sum_a>sum_r)
+	{
+		double average = (double)(sum_a-sum_r)/(count_A-count_for_average);
+		printf("sum_a>sum_r, sum_a-sum_r = %lf greater = %d average = %lf count_A = %d count_for_average =%d\n", sum_a-sum_r, greater, average, count_A, count_for_average);
+		int count_check = 0;
+		for (int m = 0; m < count_A; ++m)
+		{
+
+			if(((alpha_t[m]>0-tol_equal1)&&(alpha_t[m]<0+tol_equal1)))
+			{
+				all_alpha[perm[index_A[m]]] = 0;
+				count_check++;
+				continue;
+			}
+
+			if((alpha_t[m]>param->C-tol_equal1)&&(alpha_t[m]<param->C+tol_equal1))
+			{
+				all_alpha[perm[index_A[m]]] = param->C;
+				count_check++;
+				continue;
+			}
+
+			if(prob->y[perm[index_A[m]]]<0)
+			{
+				all_alpha[perm[index_A[m]]] = alpha_t[m] + average;
+				greater++;
+			}
+			else
+			{
+				all_alpha[perm[index_A[m]]] = alpha_t[m] - average;
+				greater++;
+			}
+			
+		}
+		printf("if greater is equal to count_check: %d vs. %d sum = %d \n", greater, count_check, greater+count_check );
+	}
+	else
+	{
+		// sum_a<sum_r
+		double average = (double)(sum_r-sum_a)/(count_A-count_for_average);
+		printf("sum_a<sum_r, sum_r-sum_a = %lf average = %lf count_A = %d count_for_average = %d\n", sum_r-sum_a, average, count_A, count_for_average);
+		int count_check = 0;
+		for (int m = 0; m < count_A; ++m)
+		{
+			if(((alpha_t[m]>0-tol_equal1)&&(alpha_t[m]<0+tol_equal1)))
+			{
+				all_alpha[perm[index_A[m]]] = 0;
+				count_check++;
+				continue;
+			}
+
+			if((alpha_t[m]>param->C-tol_equal1)&&(alpha_t[m]<param->C+tol_equal1))
+			{
+				all_alpha[perm[index_A[m]]] = param->C;
+				count_check++;
+				continue;
+			}
+
+			if(prob->y[perm[index_A[m]]]<0)
+			{
+				all_alpha[perm[index_A[m]]] = alpha_t[m] - average;	
+				smaller++;
+			}
+			else
+			{
+				all_alpha[perm[index_A[m]]] = alpha_t[m] + average;
+				smaller++;
+			}
+			// printf("i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], all_alpha[index_A[m]]);
+		}
+		printf("if smaller is equal to count_check: %d vs. %d sum = %d \n", smaller, count_check, smaller+count_check);
+	}
+
+
+	// check these two sums are equal or not again, after adjusting
+	sum_a = 0;
+	for (int i = 0; i < count_A; ++i)
+	{
+		sum_a += prob->y[perm[index_A[i]]]*all_alpha[perm[index_A[i]]];
+	}
+
+	sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+	printf("Second comparing sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
 }

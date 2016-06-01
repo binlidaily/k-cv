@@ -7,9 +7,6 @@
 extern "C" {
 #endif
 
-// add defination
-typedef float Qfloat;
-
 extern int libsvm_version;
 
 struct svm_node
@@ -69,7 +66,7 @@ struct svm_model
 
 	/* for classification only */
 
-	int *label;		/* label of each class (label[k]) */   /*number of classes is k*/
+	int *label;		/* label of each class (label[k]) */
 	int *nSV;		/* number of SVs for each class (nSV[k]) */
 				/* nSV[0] + nSV[1] + ... + nSV[k-1] = l */
 	/* XXX */
@@ -103,25 +100,11 @@ int svm_check_probability_model(const struct svm_model *model);
 
 void svm_set_print_string_function(void (*print_func)(const char *));
 
-// get the value of f(x_i)
-double decision_function_x(const struct svm_node *xi, double *alpha, double rho, const struct svm_problem *prob, const struct svm_parameter *param, int *perm);
-double get_Fxi(int xi, const struct svm_problem *prob, const struct svm_parameter *param, double *whole_Alpha, double rho);
 
+// at first round, use svm_train_alpha to train dataset and return the alpha
+svm_model *svm_train_alpha(const svm_problem *prob, const svm_parameter *param, double * alpha);
+svm_model *svm_train_rpi(const svm_problem *prob, const svm_parameter *param, double * all_alpha);
 
-// get all Q_ij
-void Q_ij(const struct svm_problem *prob, const struct svm_parameter *param, int *perm, Qfloat** all_Q);
-void get_Qij(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat ** all_Q);
-// void get_Qij(const struct svm_problem *prob, const struct svm_parameter *param, SVC_Q svc_q, Qfloat ** all_Q);
-
-// get value of kernel function
-double kernel_function(const svm_node *x, const svm_node *y, const svm_parameter& param);
-
-
-void approximate_solution(const struct svm_problem *prob, const struct svm_parameter *param, int *index_M, int count_M, int *index_O, int count_O, int *index_I, int count_I, int *index_A, int count_A, int *index_R, int count_R, Qfloat **Q_ij, double *alpha, int *perm, double rho, double* alpha_St);
-
-svm_model *svm_train_origin(const svm_problem *prob, const svm_parameter *param, double * whole_Alpha);
-
-void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target);
 
 #ifdef __cplusplus
 }
