@@ -19,7 +19,7 @@
 bool KKT_CHECK = 0;
 // record iterations in each round
 int iterations_check = 0;
-
+double time_comsuming_solve =0;
 // record global_rho
 double global_rho = 0;
 double global_rho_origin = 0;
@@ -118,7 +118,8 @@ Cache::Cache(int l_,long int size_):l(l_),size(size_)
 	head = (head_t *)calloc(l,sizeof(head_t));	// initialized to 0
 	size /= sizeof(Qfloat);
 	size -= l * sizeof(head_t) / sizeof(Qfloat);
-	size = max(size, 2 * (long int) l);	// cache must be large enough for two columns
+	// size = max(size, 2 * (long int) l);	// cache must be large enough for two columns
+	size = 2 * (long int) l;
 	lru_head.next = lru_head.prev = &lru_head;
 }
 
@@ -1495,9 +1496,15 @@ static void solve_c_svc(
 		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
 	}
 
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
+
 	Solver s;
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
+
+	end_train_solve = clock();
+	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
@@ -1540,14 +1547,14 @@ static void solve_c_svc_rpi(
 
 	Solver s;
 
-	// clock_t start_train_solve, end_train_solve;
-	// start_train_solve = clock();
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
 
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
-	// end_train_solve = clock();
-	// time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+	end_train_solve = clock();
+	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
@@ -2832,7 +2839,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		// Set A, record the valid indexes in A
 		int count_A = end_A-begin_A;
 		int *index_A = new int[count_A];
-		int * valid_A = new int[count_A];
+		int *valid_A = new int[count_A];
 
 		// printf("count_R - count_A = %d\n", count_R-count_A);
 		for(int a=0;a<end_A-begin_A;a++)
@@ -3059,6 +3066,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 	}		
 	printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
 	printf("svm_train(): %lfs\n", time_svm_train);
+	printf("time_comsuming_solve: %lfs\n", time_comsuming_solve);
 	printf("initialize alpha: %lfs\n", time_approximate);
 	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
 	printf("iterations_check = %d\n", iterations_check);
