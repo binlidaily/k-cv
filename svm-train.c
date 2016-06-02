@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 		clock_t start = clock(), end;
 		do_cross_validation();
 		end = clock();
-		printf("elasped time for do_cross_validation() is: %lfs\n", (double)(end-start)/CLOCKS_PER_SEC);
+		printf("do_cross_validation(): %lfs\n", (double)(end-start)/CLOCKS_PER_SEC);
 	}
 	else
 	{

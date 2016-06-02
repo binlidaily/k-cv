@@ -447,7 +447,33 @@ void calculate_gi(const struct svm_problem *prob, const struct svm_parameter *pa
 		for (int j = end_A; j < prob->l; ++j)
 		{
 			// printf("j = %d y = %lf prob->y[perm[j]]>0 ? 1: -1 = %d\n", j, prob->y[perm[j]], prob->y[perm[j]]>0 ? 1: -1);
+			// TODO all K
 			sigma += all_alpha[perm[j]]*y_i*(prob->y[perm[j]]>0 ? 1: -1)*kernel_function(prob->x[perm[i]], prob->x[perm[j]], *param);
+		}
+
+		f_i[perm[i]] = sigma - 1;
+	}
+}
+
+void calculate_gi_K(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, Qfloat **all_K, int begin_A, int end_A, int *perm, double *f_i)
+{
+	double sigma = 0;
+	for (int i = begin_A; i < end_A; ++i)
+	{
+		f_i[perm[i]] = 0;
+	}
+
+	int y_i = 0;
+	for (int i = end_A; i < prob->l; ++i)
+	{
+		sigma = 0;
+		y_i = prob->y[perm[i]]>0 ? 1: -1;
+		for (int j = end_A; j < prob->l; ++j)
+		{
+			// printf("j = %d y = %lf prob->y[perm[j]]>0 ? 1: -1 = %d\n", j, prob->y[perm[j]], prob->y[perm[j]]>0 ? 1: -1);
+			// TODO all K
+			// sigma += all_alpha[perm[j]]*y_i*(prob->y[perm[j]]>0 ? 1: -1)*kernel_function(prob->x[perm[i]], prob->x[perm[j]], *param);
+			sigma += all_alpha[perm[j]]*y_i*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
 		}
 
 		f_i[perm[i]] = sigma - 1;
@@ -935,7 +961,6 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
 	}
 
-	printf("sum_a = %lf sum_r = %lf\n", sum_a, sum_r);
 	if(sum_r>sum_a-tol_equal1 && sum_r<sum_a+tol_equal1)
 	{
 		return;
@@ -1033,7 +1058,8 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 		// 	}
 		// }
 	}
-
+	printf("sum_a = %lf sum_r = %lf\n", sum_a, sum_r);
+	
 	sum_a = 0;
 	for (int i = 0; i < fixed_count_A; ++i)
 	{		

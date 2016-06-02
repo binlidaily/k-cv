@@ -34,6 +34,7 @@ void checking();
 void calculate_fi(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int begin_A, int end_A, int *perm, double *f_i);
 
 void calculate_gi(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int begin_A, int end_A, int *perm, double *f_i);
+void calculate_gi_K(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, Qfloat **all_K, int begin_A, int end_A, int *perm, double *f_i);
 
 int find_St_index(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat ** all_K, double *all_alpha, int Sr_i, double *f_i, int *index_A, int count_A, int *valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho);
 // int find_St_index(const struct svm_problem *prob, const struct svm_parameter *param, int Sr_i, int end_A, int count_A, int* index_A, int* valid_A, double *all_alpha, double *f_i, int *perm, double rho);
