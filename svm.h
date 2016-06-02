@@ -104,6 +104,7 @@ void svm_set_print_string_function(void (*print_func)(const char *));
 // at first round, use svm_train_alpha to train dataset and return the alpha
 svm_model *svm_train_alpha(const svm_problem *prob, const svm_parameter *param, double * alpha);
 svm_model *svm_train_rpi(const svm_problem *prob, const svm_parameter *param, double * all_alpha);
+svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param, double * all_alpha, bool isFirstRound);
 
 
 #ifdef __cplusplus
