@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 		clock_t start = clock(), end;
 		do_cross_validation();
 		end = clock();
-		printf("do_cross_validation(): %lfs\n", (double)(end-start)/CLOCKS_PER_SEC);
+		printf("do_cross_validation:%lf\n", (double)(end-start)/CLOCKS_PER_SEC);
 	}
 	else
 	{
@@ -169,7 +169,8 @@ void do_cross_validation()
 		for(i=0;i<prob.l;i++)
 			if(target[i] == prob.y[i])
 				++total_correct;
-		printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
+		// printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
+		printf("Cross_Validation_Accuracy: %g%%\n",100.0*total_correct/prob.l);
 	}
 	free(target);
 }

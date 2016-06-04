@@ -2181,7 +2181,7 @@ static double svm_svr_probability(
 	else{
 		svm_cross_validation_libsvm(prob,&newparam,nr_fold,ymv);
 	}
-	
+
 	for(i=0;i<prob->l;i++)
 	{
 		ymv[i]=prob->y[i]-ymv[i];
@@ -3073,13 +3073,22 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		free(subprob.x);
 		free(subprob.y);
 	}		
-	printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
-	printf("svm_train(): %lfs\n", time_svm_train);
-	printf("time_comsuming_solve: %lfs\n", time_comsuming_solve);
-	printf("initialize alpha: %lfs\n", time_approximate);
+	printf("\ncalculate_Kernel_time: %lf\n", calculate_Kernel_time);
+	printf("svm_train: %lf\n", time_svm_train);
+	printf("time_comsuming_solve: %lf\n", time_comsuming_solve);
+	printf("initialize_alpha: %lf\n", time_approximate);
 	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
-	printf("iterations_check = %d\n", iterations_check);
-	printf("data size: %d\n", l);
+	printf("iterations_check: %d\n", iterations_check);
+	printf("data_size: %d\n", l);
+
+	// printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
+	// printf("svm_train(): %lfs\n", time_svm_train);
+	// printf("time_comsuming_solve: %lfs\n", time_comsuming_solve);
+	// printf("initialize alpha: %lfs\n", time_approximate);
+	// printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
+	// printf("iterations_check = %d\n", iterations_check);
+	// printf("data size: %d\n", l);
+
 
 	// delete[] fx;
 	for(int i=0;i<l;i++)
@@ -3228,9 +3237,12 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 		free(subprob.x);
 		free(subprob.y);
 	}		
-	printf("\nsvm_train: %lfs\n", time_comsuming_train);
-	printf("iterations_check = %d\n", iterations_check);
-	printf("data size: %d\n", l);
+	// printf("\nsvm_train: %lfs\n", time_comsuming_train);
+	// printf("iterations_check = %d\n", iterations_check);
+	// printf("data size: %d\n", l);
+	printf("\nsvm_train: %lf\n", time_comsuming_train);
+	printf("iterations_check: %d\n", iterations_check);
+	printf("data_size: %d\n", l);
 	free(fold_start);
 	free(perm);
 }
