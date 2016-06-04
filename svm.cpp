@@ -28,6 +28,7 @@ double global_bu = 0;
 double global_bl = 0;
 int cache_hit = 0;
 int cache_missed = 0;
+double total_init = 0;
 
 // double *g_i;
 // bool g_i_valid = true;
@@ -560,6 +561,9 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		active_size = l;
 	}
 
+	clock_t start_init, end_init;
+	start_init = clock();
+
 	// initialize gradient
 	{
 		G = new double[l];
@@ -583,6 +587,8 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 						G_bar[j] += get_C(i) * Q_i[j];
 			}
 	}
+	end_init = clock();
+	total_init += (double)(end_init-start_init)/CLOCKS_PER_SEC;
 
 	// optimization step
 	clock_t start_train_solve, end_train_solve;
@@ -2677,6 +2683,17 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 	return model;
 }
 
+//print program execution info
+void PrintStat(char *cv_type)
+{
+	printf("%s is completed\n", cv_type);
+	printf("total_iter_time: %lf\n", total_iter_time);
+	printf("iterations_check: %d\n", iterations_check);
+	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
+	printf("cost per iter %f\n", (float)total_iter_time/iterations_check);
+	printf("total init before iter cost %f\n", total_init);
+}
+
 // Stratified cross validation
 void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
 {
@@ -3223,10 +3240,8 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	}		
 	printf("\ncalculate_Kernel_time: %lf\n", calculate_Kernel_time);
 	printf("svm_train: %lf\n", time_svm_train);
-	printf("total_iter_time: %lf\n", total_iter_time);
 	printf("initialize_alpha: %lf\n", time_approximate);
 	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
-	printf("iterations_check: %d\n", iterations_check);
 	printf("data_size: %d\n", l);
 
 	// printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
@@ -3259,8 +3274,8 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	free(fold_start);
 	free(perm);
 
-	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
-	printf("cost per iter %f\n", (float)total_iter_time/iterations_check);
+	//print program execution information
+	PrintStat("sri");
 }
 
 // Stratified cross validation
@@ -3392,13 +3407,11 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 	// printf("iterations_check = %d\n", iterations_check);
 	// printf("data size: %d\n", l);
 	printf("\nsvm_train: %lf\n", time_comsuming_train);
-	printf("iterations_check: %d\n", iterations_check);
 	printf("data_size: %d\n", l);
 	free(fold_start);
 	free(perm);
 
-	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
-	printf("cost per iter %f\n", (float)total_iter_time/iterations_check);
+	PrintStat("libsvm");
 }
 
 int svm_get_svm_type(const svm_model *model)
