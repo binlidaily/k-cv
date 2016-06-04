@@ -1576,6 +1576,64 @@ static void solve_c_svc_rpi(
 	// printf("		<<<<<<<<< get out of solve_c_svc_rpi\n");
 }
 
+static void solve_c_svc_unified(
+	const svm_problem *prob, const svm_parameter* param,
+	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn, bool bReuseAlpha)
+{
+	// printf("		>>>>>>>>>> get into solve_c_svc_rpi\n");
+	int l = prob->l;
+	double *minus_ones = new double[l];
+	schar *y = new schar[l];
+
+	int i;
+	for(i=0;i<l;i++)
+	{
+		if(bReuseAlpha == false)
+			alpha[i] = 0;
+		minus_ones[i] = -1;
+		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
+	}
+
+	#if KKT_CHECK
+	double check_KKT_round = 0;
+	for (int i = 0; i < l; ++i)
+	{
+		check_KKT_round+=prob->y[i]*alpha[i];
+	}
+	printf("in solve_c_svc_rpi after a round, check_KKT_round = %lf\n", check_KKT_round);
+	#endif
+
+	Solver s;
+
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
+
+	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
+		alpha, Cp, Cn, param->eps, si, param->shrinking);
+
+	end_train_solve = clock();
+	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
+
+	double sum_alpha=0;
+	for(i=0;i<l;i++)
+		sum_alpha += alpha[i];
+
+	if (Cp==Cn)
+		info("nu = %f\n", sum_alpha/(Cp*prob->l));
+
+	// alpha multiples y[i]
+	for(i=0;i<l;i++)
+	{
+		alpha[i] *= y[i];
+	}
+
+
+	delete[] minus_ones;
+	delete[] y;
+	// printf("		<<<<<<<<< get out of solve_c_svc_rpi\n");
+}
+
 static void solve_nu_svc(
 	const svm_problem *prob, const svm_parameter *param,
 	double *alpha, Solver::SolutionInfo* si)
@@ -1837,6 +1895,88 @@ static decision_function svm_train_one_rpi(
 			// printf("elasped time for svm_train_one_rpi() is: %lfs\n", (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC);
 		}
 			
+			break;
+		case NU_SVC:
+			solve_nu_svc(prob,param,alpha,&si);
+			break;
+		case ONE_CLASS:
+			solve_one_class(prob,param,alpha,&si);
+			break;
+		case EPSILON_SVR:
+			solve_epsilon_svr(prob,param,alpha,&si);
+			break;
+		case NU_SVR:
+			solve_nu_svr(prob,param,alpha,&si);
+			break;
+	}
+
+	info("obj = %f, rho = %f\n",si.obj,si.rho);
+
+	// output SVs
+
+	int nSV = 0;
+	int nBSV = 0;
+	for(int i=0;i<prob->l;i++)
+	{
+		if(fabs(alpha[i]) > 0)
+		{
+			++nSV;
+			if(prob->y[i] > 0)
+			{
+				if(fabs(alpha[i]) >= si.upper_bound_p)
+					++nBSV;
+			}
+			else
+			{
+				if(fabs(alpha[i]) >= si.upper_bound_n)
+					++nBSV;
+			}
+		}
+	}
+
+	info("nSV = %d, nBSV = %d\n",nSV,nBSV);
+
+	decision_function f;
+	f.alpha = alpha;
+
+	f.rho = si.rho;
+	// printf("	<<<<<<<<<<<<<< get out of svm_train_one_origin\n");
+	return f;
+}
+
+static decision_function svm_train_one_unified(
+	const svm_problem *prob, const svm_parameter *param,
+	double Cp, double Cn, double *all_alpha, bool bReuseAlpha)
+{
+	// printf("	>>>>>>>>>>>>> get into svm_train_one_origin\n");
+	double *alpha = Malloc(double,prob->l);
+	if(bReuseAlpha == true)//reuse alpha
+		alpha = all_alpha;
+	Solver::SolutionInfo si;
+
+	#if KKT_CHECK
+	double sum_y_a = 0;
+	for (int i = 0; i < prob->l; ++i)
+	{
+		sum_y_a += prob->y[i]*all_alpha[i];
+	}
+	printf("in svm_train_one_rpi sum{alpha_i * y_i} = %lf\n", sum_y_a);
+	#endif
+
+	switch(param->svm_type)
+	{
+		case C_SVC:
+		{
+			// clock_t start_train_solve_c, end_train_solve_c;
+			// start_train_solve_c = clock();
+
+			solve_c_svc_unified(prob,param,alpha,&si,Cp,Cn, bReuseAlpha);
+
+			// end_train_solve_c = clock();
+			// time_comsuming_solve_c += (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC;
+			// printf("elasped time for svm_train_one_rpi() is: %lfs\n", (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC);
+		}
+
 			break;
 		case NU_SVC:
 			solve_nu_svc(prob,param,alpha,&si);
@@ -3217,7 +3357,7 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 
 		// modify
 		clock_t start_train = clock(), end_train;
-		struct svm_model *submodel = svm_train(&subprob,param);
+		struct svm_model *submodel = svm_train_unified(&subprob,param, NULL, true);
 		end_train = clock();
 		time_comsuming_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
 		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
@@ -4679,18 +4819,18 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 				if(param->rpi == 1 && isFirstRound == false)
 				{
 					// printf("rpi = 1, choose rpi\n");
-					f[p] = svm_train_one_rpi(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha);
+					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha, true);
 				}
 				else
 				{
 					// printf("rpi = 0, choose libsvm\n");
-					f[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
+					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], NULL, false);
 				}
 				// svm_train_end = clock();
 				// iterations_libsvm +=iterations_check;
 				// printf("elapsed time of svm_train_one: %lf\n",(double)(svm_train_end-svm_train_start)/CLOCKS_PER_SEC);
 
-				if(isFirstRound == true)
+				if(isFirstRound == true && all_alpha != NULL)//all_alpha is NULL for libsvm
 				{
 					// record the alpha
 					// ci+cj == l
