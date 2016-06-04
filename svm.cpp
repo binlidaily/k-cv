@@ -26,6 +26,8 @@ double global_rho_origin = 0;
 double tol_equal = 0.000001;
 double global_bu = 0;
 double global_bl = 0;
+int cache_hit = 0;
+int cache_missed = 0;
 
 // double *g_i;
 // bool g_i_valid = true;
@@ -148,6 +150,7 @@ void Cache::lru_insert(head_t *h)
 
 int Cache::get_data(const int index, Qfloat **data, int len)
 {
+	int const_len = len;
 	head_t *h = &head[index];
 	if(h->len) lru_delete(h);
 	int more = len - h->len;
@@ -170,6 +173,8 @@ int Cache::get_data(const int index, Qfloat **data, int len)
 		size -= more;
 		swap(h->len,len);
 	}
+	h->data = (Qfloat *)realloc(h->data,sizeof(Qfloat)*const_len);
+	len = 0;
 
 	lru_insert(h);
 	*data = h->data;
@@ -1324,9 +1329,12 @@ public:
 		int start, j;
 		if((start = cache->get_data(i,&data,len)) < len)
 		{
+			cache_missed++;
 			for(j=start;j<len;j++)
 				data[j] = (Qfloat)(y[i]*y[j]*(this->*kernel_function)(i,j));
 		}
+		else
+			cache_hit++;
 		return data;
 	}
 
@@ -3250,6 +3258,8 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	delete[] all_alpha;
 	free(fold_start);
 	free(perm);
+
+	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
 }
 
 // Stratified cross validation
@@ -3385,6 +3395,8 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 	printf("data_size: %d\n", l);
 	free(fold_start);
 	free(perm);
+
+	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
 }
 
 int svm_get_svm_type(const svm_model *model)
