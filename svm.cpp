@@ -19,7 +19,7 @@
 bool KKT_CHECK = 0;
 // record iterations in each round
 int iterations_check = 0;
-double time_comsuming_solve =0;
+double total_iter_time =0;
 // record global_rho
 double global_rho = 0;
 double global_rho_origin = 0;
@@ -585,6 +585,8 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 	}
 
 	// optimization step
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
 
 	int iter = 0;
 	int max_iter = max(10000000, l>INT_MAX/100 ? INT_MAX : 100*l);
@@ -756,6 +758,9 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 			}
 		}
 	}
+
+	end_train_solve = clock();
+	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 
 	if(iter >= max_iter)
 	{
@@ -1512,7 +1517,7 @@ static void solve_c_svc(
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
 	end_train_solve = clock();
-	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+//	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
@@ -1562,7 +1567,7 @@ static void solve_c_svc_rpi(
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
 	end_train_solve = clock();
-	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+//	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
@@ -1613,14 +1618,9 @@ static void solve_c_svc_unified(
 
 	Solver s;
 
-	clock_t start_train_solve, end_train_solve;
-	start_train_solve = clock();
-
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
 		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
-	end_train_solve = clock();
-	time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
@@ -3223,7 +3223,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	}		
 	printf("\ncalculate_Kernel_time: %lf\n", calculate_Kernel_time);
 	printf("svm_train: %lf\n", time_svm_train);
-	printf("time_comsuming_solve: %lf\n", time_comsuming_solve);
+	printf("total_iter_time: %lf\n", total_iter_time);
 	printf("initialize_alpha: %lf\n", time_approximate);
 	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
 	printf("iterations_check: %d\n", iterations_check);
@@ -3260,6 +3260,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	free(perm);
 
 	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
+	printf("cost per iter %f\n", (float)total_iter_time/iterations_check);
 }
 
 // Stratified cross validation
@@ -3397,6 +3398,7 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 	free(perm);
 
 	printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
+	printf("cost per iter %f\n", (float)total_iter_time/iterations_check);
 }
 
 int svm_get_svm_type(const svm_model *model)
