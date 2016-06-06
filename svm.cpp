@@ -11,7 +11,7 @@
 #include <time.h>
 // use armadillo
 // #include <armadillo>
-#include <Eigen/Dense>
+// #include <Eigen/Dense>
 #include "svm.h"
 // new functions defined in "rpi.h"
 #include "rpi.h"
@@ -20,6 +20,7 @@ bool KKT_CHECK = 0;
 // record iterations in each round
 int iterations_check = 0;
 double total_iter_time =0;
+double total_solve_time = 0;
 // record global_rho
 double global_rho = 0;
 double global_rho_origin = 0;
@@ -29,7 +30,7 @@ double global_bl = 0;
 int cache_hit = 0;
 int cache_missed = 0;
 double total_init = 0;
-
+// bool if_after_1st = 0;
 // double *g_i;
 // bool g_i_valid = true;
 
@@ -432,9 +433,14 @@ public:
 		double r;	// for Solver_NU
 	};
 
+	// void Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
+	// 	   double *alpha_, double Cp, double Cn, double eps,
+	// 	   SolutionInfo* si, int shrinking);
+
 	void Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		   double *alpha_, double Cp, double Cn, double eps,
-		   SolutionInfo* si, int shrinking);
+		   SolutionInfo* si, int shrinking, double *g, double *g_bar);
+
 protected:
 	int active_size;
 	schar *y;
@@ -498,7 +504,7 @@ void Solver::reconstruct_gradient()
 	int nr_free = 0;
 
 	for(j=active_size;j<l;j++)
-		G[j] = G_bar[j] + p[j];		//p[j]=y
+		G[j] = G_bar[j] + p[j];		//p[j]=-1
 
 	for(j=0;j<active_size;j++)
 		if(is_free(j))
@@ -532,7 +538,7 @@ void Solver::reconstruct_gradient()
 
 void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		   double *alpha_, double Cp, double Cn, double eps,
-		   SolutionInfo* si, int shrinking)
+		   SolutionInfo* si, int shrinking, double *g, double *g_bar)
 {
 	// printf("			>>>>>>>>> get into Solve\n");
 	this->l = l;
@@ -564,6 +570,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 	clock_t start_init, end_init;
 	start_init = clock();
 
+	if(g==NULL||g_bar==NULL)
 	// initialize gradient
 	{
 		G = new double[l];
@@ -587,6 +594,45 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 						G_bar[j] += get_C(i) * Q_i[j];
 			}
 	}
+	else
+	{
+		G = new double[l];
+		G_bar = new double[l];
+		G = g;
+		G_bar = g_bar;
+
+		// int i;
+		// for(i=0;i<l;i++)
+		// {
+		// 	G[i] = p[i];
+		// 	G_bar[i] = 0;
+		// }
+		// for(i=0;i<l;i++)
+		// 	if(!is_lower_bound(i))
+		// 	{
+		// 		const Qfloat *Q_i = Q.get_Q(i,l);
+		// 		double alpha_i = alpha[i];
+		// 		int j;
+		// 		for(j=0;j<l;j++)
+		// 			G[j] += alpha_i*Q_i[j];
+		// 		if(is_upper_bound(i))
+		// 			for(j=0;j<l;j++)
+		// 				G_bar[j] += get_C(i) * Q_i[j];
+		// 	}
+
+		// for(i=0;i<l;i++)
+		// {
+		// 	printf("G[%d] = %lf\n", i, G[i]);
+		// 	// printf("G_bar[%d] = %lf\n", i, G_bar[i]);
+		// }
+
+		// for(i=0;i<l;i++)
+		// {
+		// 	// printf("G[%d] = %lf\n", i, G[i]);
+		// 	printf("G_bar[%d] = %lf\n", i, G_bar[i]);
+		// }
+	}
+
 	end_init = clock();
 	total_init += (double)(end_init-start_init)/CLOCKS_PER_SEC;
 
@@ -1073,7 +1119,8 @@ public:
 		   SolutionInfo* si, int shrinking)
 	{
 		this->si = si;
-		Solver::Solve(l,Q,p,y,alpha,Cp,Cn,eps,si,shrinking);
+		// Solver::Solve(l,Q,p,y,alpha,Cp,Cn,eps,si,shrinking);
+		Solver::Solve(l,Q,p,y,alpha,Cp,Cn,eps,si,shrinking, NULL, NULL);
 	}
 private:
 	SolutionInfo *si;
@@ -1515,14 +1562,16 @@ static void solve_c_svc(
 		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
 	}
 
-	clock_t start_train_solve, end_train_solve;
-	start_train_solve = clock();
+	// clock_t start_train_solve, end_train_solve;
+	// start_train_solve = clock();
 
 	Solver s;
+	// s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
+	// 	alpha, Cp, Cn, param->eps, si, param->shrinking);
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
-		alpha, Cp, Cn, param->eps, si, param->shrinking);
+		alpha, Cp, Cn, param->eps, si, param->shrinking, NULL, NULL);
 
-	end_train_solve = clock();
+	// end_train_solve = clock();
 //	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 
 	double sum_alpha=0;
@@ -1566,13 +1615,15 @@ static void solve_c_svc_rpi(
 
 	Solver s;
 
-	clock_t start_train_solve, end_train_solve;
-	start_train_solve = clock();
+	// clock_t start_train_solve, end_train_solve;
+	// start_train_solve = clock();
 
+	// s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
+	// 	alpha, Cp, Cn, param->eps, si, param->shrinking);
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
-		alpha, Cp, Cn, param->eps, si, param->shrinking);
+		alpha, Cp, Cn, param->eps, si, param->shrinking, NULL, NULL);
 
-	end_train_solve = clock();
+	// end_train_solve = clock();
 //	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
@@ -1597,7 +1648,7 @@ static void solve_c_svc_rpi(
 
 static void solve_c_svc_unified(
 	const svm_problem *prob, const svm_parameter* param,
-	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn, bool bReuseAlpha)
+	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn, double *g, double *g_bar, bool bReuseAlpha)
 {
 	// printf("		>>>>>>>>>> get into solve_c_svc_rpi\n");
 	int l = prob->l;
@@ -1624,9 +1675,15 @@ static void solve_c_svc_unified(
 
 	Solver s;
 
-	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
-		alpha, Cp, Cn, param->eps, si, param->shrinking);
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
 
+	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
+		alpha, Cp, Cn, param->eps, si, param->shrinking, g, g_bar);
+
+	end_train_solve = clock();
+
+	total_solve_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
@@ -1728,8 +1785,10 @@ static void solve_one_class(
 	}
 
 	Solver s;
+	// s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
+	// 	alpha, 1.0, 1.0, param->eps, si, param->shrinking);
 	s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
-		alpha, 1.0, 1.0, param->eps, si, param->shrinking);
+		alpha, 1.0, 1.0, param->eps, si, param->shrinking, NULL, NULL);
 
 	delete[] zeros;
 	delete[] ones;
@@ -1757,8 +1816,11 @@ static void solve_epsilon_svr(
 	}
 
 	Solver s;
+	// s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
+	// 	alpha2, param->C, param->C, param->eps, si, param->shrinking);
+
 	s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
-		alpha2, param->C, param->C, param->eps, si, param->shrinking);
+		alpha2, param->C, param->C, param->eps, si, param->shrinking, NULL, NULL);
 
 	double sum_alpha = 0;
 	for(i=0;i<l;i++)
@@ -1960,7 +2022,7 @@ static decision_function svm_train_one_rpi(
 
 static decision_function svm_train_one_unified(
 	const svm_problem *prob, const svm_parameter *param,
-	double Cp, double Cn, double *all_alpha, bool bReuseAlpha)
+	double Cp, double Cn, double *all_alpha, double *G, double *G_bar, bool bReuseAlpha)
 {
 	// printf("	>>>>>>>>>>>>> get into svm_train_one_origin\n");
 	double *alpha = Malloc(double,prob->l);
@@ -1984,7 +2046,7 @@ static decision_function svm_train_one_unified(
 			// clock_t start_train_solve_c, end_train_solve_c;
 			// start_train_solve_c = clock();
 
-			solve_c_svc_unified(prob,param,alpha,&si,Cp,Cn, bReuseAlpha);
+			solve_c_svc_unified(prob,param,alpha,&si,Cp,Cn, G, G_bar, bReuseAlpha);
 
 			// end_train_solve_c = clock();
 			// time_comsuming_solve_c += (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC;
@@ -2815,7 +2877,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		clock_t start_train = clock(), end_train;
 
 		double * alpha_1st = new double[subprob.l];
-		struct svm_model *submodel = svm_train_unified(&subprob, param, alpha_1st, true);
+		struct svm_model *submodel = svm_train_unified(&subprob, param, alpha_1st, NULL, NULL, true);
 
 		end_train = clock();
 
@@ -2855,6 +2917,9 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		free(subprob.x);
 		free(subprob.y);
 	} // end of first round
+
+	// set global variable if_after_1st true
+	// if_after_1st = 1;
 
 	double calculate_Kernel_time = 0;
 
@@ -3184,22 +3249,68 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		subprob.x = Malloc(struct svm_node*,subprob.l);
 		subprob.y = Malloc(double,subprob.l);
 		
+
 		// new subalpha
 		double * subalpha = new double[subprob.l];
+		// double *gi = new double[prob->l];
+		double *g = new double[subprob.l];
 
-		k=0;
+		Qfloat **Q_g = new Qfloat*[subprob.l];
+
+		for(int g_i=0;g_i<subprob.l;g_i++)
+		{
+			Q_g[g_i] = new Qfloat[subprob.l];
+		}
+		printf("begin = %d end = %d \n", begin, end);
+		// Qfloat Q_g = new Qfloat[subprob.l];
+		recalculate_gi(prob, param, all_alpha, all_K, begin, end, perm, g);
+
+		k=0; 
 		for(j=0;j<begin;j++)
 		{
 			subprob.x[k] = prob->x[perm[j]];
 			subprob.y[k] = prob->y[perm[j]];
 			subalpha[k] = all_alpha[perm[j]];
+
+			// g[k] = gi[perm[j]];
+			// g[k] = gi[perm[j]];
+			
+			for (int i_begin = 0; i_begin < begin; ++i_begin)
+			{
+				Q_g[k][i_begin] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+				// Q_g[k][i_begin] = prob->y[perm[j]]*prob->y[perm[i_begin]]*all_K[perm[j]][perm[i_begin]];
+			}
+
+			for (int i_begin = end; i_begin < l; ++i_begin)
+			{
+				Q_g[k][i_begin-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+				// Q_g[k][i_begin] = prob->y[perm[j]]*prob->y[perm[i_begin]]*all_K[perm[j]][perm[i_begin]];
+			}
+			// printf("begin g[%d] = %lf\n", k, g[k]);
+			// printf("begin Q_g[%d] = %lf\n", k, Q_g[k][0]);
 			++k;
 		}
+
 		for(j=end;j<l;j++)
 		{
 			subprob.x[k] = prob->x[perm[j]];
 			subprob.y[k] = prob->y[perm[j]];
 			subalpha[k] = all_alpha[perm[j]];
+
+			// g[k] = gi[perm[j]];
+			// g[k] = gi[j-end];
+
+			for (int i_begin = 0; i_begin < begin; ++i_begin)
+			{
+				Q_g[k][i_begin] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+			}
+
+			for (int i_begin = end; i_begin < l; ++i_begin)
+			{
+				Q_g[k][i_begin-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+			}
+			// printf("end g[%d] = %lf\n", k, g[k]);
+			// printf("begin Q_g[%d] = %lf\n", k, Q_g[k][0]);
 			++k;
 		}
 
@@ -3208,7 +3319,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		clock_t start_train, end_train;
 		start_train = clock();
 
-		submodel =  svm_train_unified(&subprob, param, subalpha, false);
+		submodel =  svm_train_unified(&subprob, param, subalpha, g, Q_g, false);
 		end_train = clock();
 		time_svm_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
 		printf("elasped time for svm_train() is: %lfs, current fold is: %d\n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
@@ -3225,6 +3336,14 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 			for(j=begin;j<end;j++)
 				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
 		svm_free_and_destroy_model(&submodel);
+
+
+		for (int d = 0; d < subprob.l; ++d)
+		{
+			delete [] Q_g[d];
+		}
+		delete [] Q_g;
+		// delete [] g;
 
 		delete [] alpha_t;
 		// delete [] index_X5;
@@ -3243,6 +3362,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	printf("initialize_alpha: %lf\n", time_approximate);
 	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
 	printf("data_size: %d\n", l);
+	printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
 
 	// printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
 	// printf("svm_train(): %lfs\n", time_svm_train);
@@ -3383,7 +3503,7 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 
 		// modify
 		clock_t start_train = clock(), end_train;
-		struct svm_model *submodel = svm_train_unified(&subprob,param, NULL, true);
+		struct svm_model *submodel = svm_train_unified(&subprob,param, NULL, NULL, NULL, true);
 		end_train = clock();
 		time_comsuming_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
 		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
@@ -3408,6 +3528,8 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 	// printf("data size: %d\n", l);
 	printf("\nsvm_train: %lf\n", time_comsuming_train);
 	printf("data_size: %d\n", l);
+	printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
+	
 	free(fold_start);
 	free(perm);
 
@@ -4674,8 +4796,9 @@ svm_model *svm_train_rpi(const svm_problem *prob, const svm_parameter *param, do
 }
 
 // get alpha in rest round of cross validation, except for the first round
-svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param, double * all_alpha, bool isFirstRound)
+svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param, double * all_alpha, double *g_i, Qfloat **Q_g, bool isFirstRound)
 {
+	// printf("get into svm_train_unified\n");
 	svm_model *model = Malloc(svm_model,1);
 	model->param = *param;
 	model->free_sv = 0;	// XXX
@@ -4724,7 +4847,20 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 		free(f.alpha);
 	}
 	else
-	{
+	{	
+		// if(Q_g != NULL)
+		// {
+		// 	printf("QQQQQQQQ\n");
+		// 	for (int i = 0; i < prob->l; ++i)
+		// 	{
+		// 		for (int j = 0; j < prob->l; ++j)
+		// 		{
+		// 			printf("Q_g[%d][%d]=%f \n", i, j, Q_g[i][j]);
+		// 		}
+		// 		// printf("\n");
+		// 	}
+		// }
+		
 		// classification
 		int l = prob->l;
 		int nr_class;
@@ -4747,12 +4883,15 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 
 		//reuse alpha values
 		double *alpha = NULL;
+		double *tmp_gi = NULL;
 		if(isFirstRound == false)
 		{
 			alpha = new double[l];
+			tmp_gi = new double[l];
 			for(i=0;i<l;i++)
 			{
-				alpha[i]=all_alpha[perm[i]];
+				alpha[i] = all_alpha[perm[i]];
+				tmp_gi[i] = g_i[perm[i]];
 			}
 		}
 
@@ -4811,6 +4950,7 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 
 				//reuse alpha values
 				double * subalpha = NULL;
+
 				if(isFirstRound == false)
 				{
 					subalpha = new double[sub_prob.l];
@@ -4832,7 +4972,7 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 				double sum_y_a = 0;
 				for (int m = 0; m < prob->l; ++m)
 				{
-					sum_y_a += prob->y[m]*all_alpha[m];;
+					sum_y_a += prob->y[m]*all_alpha[m];
 				}
 				printf("in svm_train_rpi sum{alpha_i * y_i} = %lf\n", sum_y_a);
 				#endif
@@ -4843,15 +4983,54 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 				// svm_train_start = clock();
 				// check alpha difference
 
+		///-----------------------
+		// clock_t start_init, end_init;
+		// start_init = clock();
+
+				double *g = NULL;
+				double *g_bar = NULL;
 				if(param->rpi == 1 && isFirstRound == false)
 				{
 					// printf("rpi = 1, choose rpi\n");
-					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha, true);
+					g = new double[l];
+					for(k=0;k<ci;k++)
+					{
+						g[k]=tmp_gi[si+k];
+					}
+					for(k=0;k<cj;k++)
+					{
+						g[ci+k] = tmp_gi[sj+k];
+					}
+
+					g_bar = new double[l];
+					for (int i_g = 0; i_g < l; ++i_g)
+					{
+						// printf("i = %d ", i_g);
+						g_bar[i_g] = 0;
+						// printf("g_bar[i] = %lf\n", g_bar[i_g]);
+					}
+					// for (int i_g = 0; i_g < l; ++i_g)
+					// {
+					// 	if(subalpha[i_g]>param->C-tol_equal && subalpha[i_g]<param->C+tol_equal)
+					// 	{
+					// 		for (int j_g = 0; j_g < l; ++j_g)
+					// 		{
+					// 			g_bar[j_g] += ((prob->y[i_g] > 0)? weighted_C[i] : weighted_C[j])*Q_g[i_g][j_g];
+					// 		}
+					// 	}
+					// }
+
+					// for (int i_g = 0; i_g < l; ++i_g)
+					// {
+					// 	printf("g_bar[%d] = %lf\n", i_g, g_bar[i_g]);
+					// }
+
+					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha, g, g_bar, true);
 				}
 				else
 				{
 					// printf("rpi = 0, choose libsvm\n");
-					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], NULL, false);
+					f[p] = svm_train_one_unified(&sub_prob,param,weighted_C[i],weighted_C[j], NULL, NULL, NULL, false);
 				}
 				// svm_train_end = clock();
 				// iterations_libsvm +=iterations_check;
@@ -4989,7 +5168,10 @@ svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param
 		free(nz_start);
 
 		if(isFirstRound == false)
+		{
+			delete [] tmp_gi;
 			delete [] alpha;
+		}
 	}
 	return model;
 }

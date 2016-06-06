@@ -480,6 +480,79 @@ void calculate_gi_K(const struct svm_problem *prob, const struct svm_parameter *
 	}
 }
 
+void recalculate_gi(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, Qfloat **all_K, int begin, int end, int *perm, double *g_i)
+{
+	double sigma = 0;
+	int i = 0;
+	int k = 0;
+	// int d = 0;
+	// for (d = 0; d < begin; ++d)
+	// {
+	// 	g_i[d] = -1;
+	// }
+
+	// for (d = end; d < prob->l; ++d)
+	// {
+	// 	g_i[d-end+begin] = -1;
+	// }
+
+	for (i = 0; i < begin; ++i)
+	{
+		sigma = 0;
+		for (int j = 0; j < begin; ++j)
+		{
+			sigma += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
+			// g_i[j] += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[j]][perm[i]];
+
+			// Q_g[k][j] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[j]]>0? 1 : -1)*all_K[perm[j]][perm[j]];
+			// Q_g[k][j] = prob->y[perm[j]]*prob->y[perm[j]]*all_K[perm[j]][perm[j]];
+		}
+
+		for (int j = end; j < prob->l; ++j)
+		{
+			sigma += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
+			// g_i[j-end+begin] += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[j]][perm[i]];
+
+			// Q_g[k][j-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[j]]>0? 1 : -1)*all_K[perm[j]][perm[j]];
+			// Q_g[k][j] = prob->y[perm[j]]*prob->y[perm[j]]*all_K[perm[j]][perm[j]];
+		}
+
+		// g_i[perm[i]] = sigma - 1;
+		// g_i[perm[k]] = sigma - 1;
+		g_i[k] = sigma - 1;
+		k++;
+	}
+
+	// for (i = begin; i < end; ++i)
+	// {
+	// 	g_i[perm[i]] = 0;
+	// }
+
+	for (i = end; i < prob->l; ++i)
+	{
+		sigma = 0;
+		for (int j = 0; j < begin; ++j)
+		{
+			sigma += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
+			// g_i[j] += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[j]][perm[i]];
+			// Q_g[k][j] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[j]]>0? 1 : -1)*all_K[perm[j]][perm[j]];
+			// Q_g[k][j] = prob->y[perm[j]]*prob->y[perm[j]]*all_K[perm[j]][perm[j]];
+		}
+
+		for (int j = end; j < prob->l; ++j)
+		{
+			sigma += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
+			// g_i[j-end+begin] += all_alpha[perm[j]]*(prob->y[perm[i]]>0? 1 : -1)*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[j]][perm[i]];
+			// Q_g[k][j-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[j]]>0? 1 : -1)*all_K[perm[j]][perm[j]];
+			// Q_g[k][j] = prob->y[perm[j]]*prob->y[perm[j]]*all_K[perm[j]][perm[j]];
+		}
+		// g_i[perm[i]] = sigma - 1;
+		// g_i[perm[k]] = sigma - 1;
+		g_i[k] = sigma - 1;
+		k++;
+	}
+}
+
 // // find the index
 // int find_St_index(const struct svm_problem *prob, const struct svm_parameter *param, int Sr_i, int end_A, int count_A, int* index_A, int* valid_A, double *all_alpha, double *f_i, int *perm, double rho)
 // {
