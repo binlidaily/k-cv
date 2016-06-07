@@ -138,7 +138,7 @@ void do_cross_validation()
 	// choose which one
 	if(param.rpi == 1)
 	{
-		svm_cross_validation_sri(&prob,&param,nr_fold,target);	
+		svm_cross_validation_sri2(&prob,&param,nr_fold,target);
 	}
 	else{
 		svm_cross_validation_libsvm(&prob,&param,nr_fold,target);

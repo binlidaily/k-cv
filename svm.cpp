@@ -1897,6 +1897,417 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 }
 
 // Stratified cross validation
+void svm_cross_validation_sri2(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
+{
+	int i;
+	int *fold_start;
+	int l = prob->l;
+	int *perm = Malloc(int,l);
+	int nr_class;
+	if (nr_fold > l)
+	{
+		nr_fold = l;
+		fprintf(stderr,"WARNING: # folds > # data. Will use # folds = # data instead (i.e., leave-one-out cross validation)\n");
+	}
+	fold_start = Malloc(int,nr_fold+1);
+	// stratified cv may not give leave-one-out rate
+	// Each class to l folds -> some folds may have zero elements
+	if((param->svm_type == C_SVC ||
+	    param->svm_type == NU_SVC) && nr_fold < l)
+	{
+		int *start = NULL;
+		int *label = NULL;
+		int *count = NULL;
+		svm_group_classes(prob,&nr_class,&label,&start,&count,perm);
+
+		// random shuffle and then data grouped by fold using the array perm
+		int *fold_count = Malloc(int,nr_fold);
+		int c;
+		int *index = Malloc(int,l);
+		for(i=0;i<l;i++)
+			index[i]=perm[i];
+		for (c=0; c<nr_class; c++)
+			for(i=0;i<count[c];i++)
+			{
+				int j = i+rand()%(count[c]-i);
+				swap(index[start[c]+j],index[start[c]+i]);
+			}
+		for(i=0;i<nr_fold;i++)
+		{
+			fold_count[i] = 0;
+			for (c=0; c<nr_class;c++)
+				fold_count[i]+=(i+1)*count[c]/nr_fold-i*count[c]/nr_fold;
+		}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		for (c=0; c<nr_class;c++)
+			for(i=0;i<nr_fold;i++)
+			{
+				int begin = start[c]+i*count[c]/nr_fold;
+				int end = start[c]+(i+1)*count[c]/nr_fold;
+				for(int j=begin;j<end;j++)
+				{
+					perm[fold_start[i]] = index[j];
+					fold_start[i]++;
+				}
+			}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		free(start);
+		free(label);
+		free(count);
+		free(index);
+		free(fold_count);
+	}
+	else
+	{
+		for(i=0;i<l;i++) perm[i]=i;
+		for(i=0;i<l;i++)
+		{
+			int j = i+rand()%(l-i);
+			swap(perm[i],perm[j]);
+		}
+		for(i=0;i<=nr_fold;i++)
+			fold_start[i]=i*l/nr_fold;
+	}
+
+	// record time of svm_train
+	double time_svm_train = 0;
+
+	// all_alpha
+	double *all_alpha = new double[l];
+
+	// initialize all_alpha
+	for (int i = 0; i < l; ++i)
+	{
+		all_alpha[i] = 0;
+	}
+
+	// record the index of first round
+	int begin_A = fold_start[0];
+	int end_A = fold_start[0+1];
+
+	// first round of svm_cross_validation
+	{
+		// int begin = fold_start[0];
+		// int end = fold_start[0+1];
+		int j,k;
+		struct svm_problem subprob;
+
+		subprob.l = l-(end_A-begin_A);
+		subprob.x = Malloc(struct svm_node*,subprob.l);
+		subprob.y = Malloc(double,subprob.l);
+
+		k=0;
+		for(j=0;j<begin_A;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+		for(j=end_A;j<l;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+		// record time of svm_train
+		clock_t start_train = clock(), end_train;
+
+		double * alpha_1st = new double[subprob.l];
+		struct svm_model *submodel = svm_train_unified(&subprob, param, alpha_1st, NULL, NULL, true);
+
+		end_train = clock();
+
+		for (int i = begin_A; i < subprob.l; ++i)
+		{
+			all_alpha[perm[end_A+i]] = alpha_1st[i];
+		}
+
+		#if KKT_CHECK
+		// check if sum{y_i*alpha_i} == 0
+		double check_KKT = 0;
+		for (int i = begin_A; i < subprob.l; ++i)
+		{
+			check_KKT += subprob.y[i]*all_alpha[perm[end_A+i]];
+		}
+		printf("check if sum{y_i*alpha_i} == 0 after svm_train_alpha: %lf\n", check_KKT);
+		// end--> check if sum{y_i*alpha_i} == 0
+		#endif
+
+		time_svm_train += (double)(end_train-start_train)/CLOCKS_PER_SEC;
+		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, 1);
+
+		global_rho = global_rho_origin;
+		if(param->probability &&
+		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
+		{
+			double *prob_estimates=Malloc(double,svm_get_nr_class(submodel));
+			for(j=begin_A;j<end_A;j++)
+				target[perm[j]] = svm_predict_probability(submodel,prob->x[perm[j]],prob_estimates);
+			free(prob_estimates);
+		}
+		else
+			for(j=begin_A;j<end_A;j++)
+				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
+		svm_free_and_destroy_model(&submodel);
+		delete[] alpha_1st;
+		free(subprob.x);
+		free(subprob.y);
+	} // end of first round
+
+	// set global variable if_after_1st true
+	// if_after_1st = 1;
+
+	double calculate_Kernel_time = 0;
+
+	clock_t calculate_Kernel_start = clock();
+
+	Qfloat **all_K = new Qfloat*[l];
+
+	for(int i=0;i<l;i++)
+	{
+		all_K[i] = new Qfloat[l];
+	}
+
+	calculate_Kernel(prob, param, all_K);
+
+	clock_t calculate_Kernel_end = clock();
+	calculate_Kernel_time += (double)(calculate_Kernel_end-calculate_Kernel_start)/CLOCKS_PER_SEC;
+	// printf("elasped time for partition is: %lfs\n", (double)(calculate_Kernel_end-calculate_Kernel_start)/CLOCKS_PER_SEC);
+
+
+	double time_approximate = 0;
+	for(i=1;i<nr_fold;i++)
+	{
+		// clock_t partition_start = clock();
+
+		// Set R, remove testing subset in current round
+		int begin = fold_start[i];
+		int end = fold_start[i+1];
+		int *index_R = new int[end-begin];
+		// int *valid_R = new int[end-begin];
+		for (int r = 0; r < end-begin; ++r)
+		{
+			index_R[r] = begin+r;
+			// valid_R[i] = 1;
+		}
+		int count_R = end-begin;
+		// end--> Set R
+
+		// Set A, record the valid indexes in A
+		int count_A = end_A-begin_A;
+		int *index_A = new int[count_A];
+		int *valid_A = new int[count_A];
+
+		// printf("count_R - count_A = %d\n", count_R-count_A);
+		for(int a=0;a<end_A-begin_A;a++)
+		{
+			index_A[a]=begin_A+a;
+			valid_A[a] = 1;
+		}
+
+		// initialize the alpha to zero in set A
+		for (int m = begin_A; m < end_A; ++m)
+		{
+			all_alpha[perm[m]] = 0;
+		}
+		// end--> Set A
+
+			double *alpha_t = new double[count_A];
+
+		for (int at = 0; at < count_A; ++at)
+		{
+			alpha_t[at] = 0;
+		}
+
+
+		clock_t time_start, time_end;
+		time_start = clock();
+
+		int *valid_0 = new int[count_R];
+		int count_0 = 0;
+
+		for (int v0 = 0; v0 < count_R; ++v0)
+		{
+			valid_0[v0] = 0;
+			if(all_alpha[perm[index_R[v0]]]>=0-tol_equal && all_alpha[perm[index_R[v0]]]<=0+tol_equal)
+			{
+				valid_0[v0] = 1;
+				count_0++;
+			}
+		}
+
+
+		init_alpha_t2(prob, param, all_K, all_alpha, index_R, count_R, valid_0,
+					 index_A, count_A, valid_A, perm, global_rho, alpha_t);
+
+		time_end = clock();
+
+		// printf("-----> record_R = %d count_A = %d count_R = %d count_R-record_R = %d\n", record_R, count_A, count_R, count_R-record_R);
+
+
+
+		time_approximate += (double)(time_end-time_start)/CLOCKS_PER_SEC;
+		// printf("elasped time for find_St_index() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
+
+		// check alpha_t
+		// printf("----> alpha_t\n");
+		for (int a = 0; a < count_A; ++a)
+		{
+			// printf("alpha_t[%d] = %lf\n", i, alpha_t[i]);
+			all_alpha[perm[index_A[a]]] = alpha_t[a];
+
+		}
+
+		// adjust_sum_ya(prob, param, all_alpha, alpha_t, index_A, count_A, index_R, count_R, perm);
+
+
+		// =========construct svm_model=========
+		int j,k;
+		struct svm_problem subprob;
+
+		subprob.l = l-(end-begin);
+		subprob.x = Malloc(struct svm_node*,subprob.l);
+		subprob.y = Malloc(double,subprob.l);
+
+
+		// new subalpha
+		double * subalpha = new double[subprob.l];
+		// double *gi = new double[prob->l];
+		double *g = new double[subprob.l];
+
+		Qfloat **Q_g = new Qfloat*[subprob.l];
+
+		for(int g_i=0;g_i<subprob.l;g_i++)
+		{
+			Q_g[g_i] = new Qfloat[subprob.l];
+		}
+		printf("begin = %d end = %d \n", begin, end);
+		// Qfloat Q_g = new Qfloat[subprob.l];
+		recalculate_gi(prob, param, all_alpha, all_K, begin, end, perm, g);
+
+		k=0;
+		for(j=0;j<begin;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			subalpha[k] = all_alpha[perm[j]];
+
+			// g[k] = gi[perm[j]];
+			// g[k] = gi[perm[j]];
+
+			for (int i_begin = 0; i_begin < begin; ++i_begin)
+			{
+				Q_g[k][i_begin] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+				// Q_g[k][i_begin] = prob->y[perm[j]]*prob->y[perm[i_begin]]*all_K[perm[j]][perm[i_begin]];
+			}
+
+			for (int i_begin = end; i_begin < l; ++i_begin)
+			{
+				Q_g[k][i_begin-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+				// Q_g[k][i_begin] = prob->y[perm[j]]*prob->y[perm[i_begin]]*all_K[perm[j]][perm[i_begin]];
+			}
+			// printf("begin g[%d] = %lf\n", k, g[k]);
+			// printf("begin Q_g[%d] = %lf\n", k, Q_g[k][0]);
+			++k;
+		}
+
+		for(j=end;j<l;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			subalpha[k] = all_alpha[perm[j]];
+
+			// g[k] = gi[perm[j]];
+			// g[k] = gi[j-end];
+
+			for (int i_begin = 0; i_begin < begin; ++i_begin)
+			{
+				Q_g[k][i_begin] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+			}
+
+			for (int i_begin = end; i_begin < l; ++i_begin)
+			{
+				Q_g[k][i_begin-end] = (Qfloat)(prob->y[perm[j]]>0? 1 : -1)*(Qfloat)(prob->y[perm[i_begin]]>0? 1 : -1)*all_K[perm[j]][perm[i_begin]];
+			}
+			// printf("end g[%d] = %lf\n", k, g[k]);
+			// printf("begin Q_g[%d] = %lf\n", k, Q_g[k][0]);
+			++k;
+		}
+
+		struct svm_model *submodel;
+
+		clock_t start_train, end_train;
+		start_train = clock();
+
+		submodel =  svm_train_unified(&subprob, param, subalpha, g, Q_g, false);
+		end_train = clock();
+		time_svm_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
+		printf("elasped time for svm_train() is: %lfs, current fold is: %d\n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
+
+		if(param->probability &&
+		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
+		{
+			double *prob_estimates=Malloc(double,svm_get_nr_class(submodel));
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict_probability(submodel,prob->x[perm[j]],prob_estimates);
+			free(prob_estimates);
+		}
+		else
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
+		svm_free_and_destroy_model(&submodel);
+
+
+		for (int d = 0; d < subprob.l; ++d)
+		{
+			delete [] Q_g[d];
+		}
+		delete [] Q_g;
+		// delete [] g;
+
+		delete [] alpha_t;
+		delete [] index_A;
+		delete [] index_R;
+
+		free(subprob.x);
+		free(subprob.y);
+	}
+	printf("\ncalculate_Kernel_time: %lf\n", calculate_Kernel_time);
+	printf("svm_train: %lf\n", time_svm_train);
+	printf("initialize_alpha: %lf\n", time_approximate);
+	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
+	printf("data_size: %d\n", l);
+	printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
+
+	// printf("\ncalculate_Kernel_time: %lfs\n", calculate_Kernel_time);
+	// printf("svm_train(): %lfs\n", time_svm_train);
+	// printf("time_comsuming_solve: %lfs\n", time_comsuming_solve);
+	// printf("initialize alpha: %lfs\n", time_approximate);
+	// printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
+	// printf("iterations_check = %d\n", iterations_check);
+	// printf("data size: %d\n", l);
+
+
+	// delete[] fx;
+	for(int i=0;i<l;i++)
+	{
+		// free(all_Q[i]);
+		delete[] all_K[i];
+	}
+	delete[] all_K;
+	delete[] all_alpha;
+	free(fold_start);
+	free(perm);
+
+	//print program execution information
+	PrintStat("sri");
+}
+
+// Stratified cross validation
 void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
 {
 	int i;

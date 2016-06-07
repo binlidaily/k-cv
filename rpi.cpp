@@ -1,11 +1,18 @@
 #include <math.h>
 #include <stdio.h>
 #include <float.h>
+#include <iostream>
 // #include <armadillo>
+#include <ext/pb_ds/assoc_container.hpp> // Common file
+#include <ext/pb_ds/tree_policy.hpp> // Including tree_order_statistics_node_update
+#include <ext/pb_ds/detail/standard_policies.hpp>
 #include <Eigen/Dense>
 
 #include "rpi.h"
 #include "svm.h"
+
+using namespace __gnu_pbds;
+using std::less;
 
 // using namespace arma;
 using namespace Eigen;
@@ -16,6 +23,8 @@ double tol_equal1 = 0.000001;
 
 
 typedef signed char schar;
+
+typedef tree<float, null_mapped_type, less<float>, rb_tree_tag, tree_order_statistics_node_update> ordered_set;
 
 double pow(double base, int times)
 {
@@ -1164,6 +1173,201 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 
 
 }
+
+void init_alpha_t2(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha,
+				  int *index_R,  int count_R, int *valid_0, int *index_A, int count_A, int *valid_A,
+				  int *perm, double rho, double* alpha_t)
+{
+	int min_violation = INT_MAX;
+	int result = -1;
+	int min_index = -1;
+
+	int violations = 0;
+	double compare_fi = 0;
+	int tmp_index = -1;
+	int tmp_perm_sr = -1;
+	int tmp_perm_ia = -1;
+	int tmp_swap_a = -1;
+	int fixed_count_A = count_A;
+	double tmp_sr_ya = 0;
+	double tmp_st_ya = 0;
+	bool skip = false;
+	int negtive = 0;
+
+
+	//replacing R by T
+	for (int sri = 0; sri < count_R; ++sri)
+	{
+		if(valid_0[sri]==1)
+		{
+			// record_R++;
+			continue;
+		}
+
+		min_violation = INT_MAX;
+		result = -1;
+		min_index = -1;
+
+		violations = 0;
+		compare_fi = 0;
+		tmp_swap_a = -1;
+
+		tmp_perm_sr = perm[index_R[sri]];
+		tmp_sr_ya = prob->y[tmp_perm_sr]*all_alpha[tmp_perm_sr];
+		int count_loop = 0;
+		// count_A = fixed_count_A;
+		//find max kernel value
+		float kernel_value = 0;
+
+		for (int a = 0; a < count_A; ++a)
+		{
+			tmp_perm_ia = perm[index_A[a]];
+
+			if(!(prob->y[tmp_perm_sr] >= prob->y[tmp_perm_ia] - tol_equal1 && prob->y[tmp_perm_sr] <= prob->y[tmp_perm_ia] + tol_equal1))
+			{
+				// printf("prob->y[tmp_perm_sr] = %lf prob->y[tmp_perm_ia] = %lf\n", prob->y[tmp_perm_sr], prob->y[tmp_perm_ia]);
+				continue;
+			}
+
+			if(all_K[tmp_perm_sr][tmp_perm_ia] > kernel_value)
+			{
+				min_index = a;
+				kernel_value = all_K[tmp_perm_sr][tmp_perm_ia];
+			}
+		}
+
+
+		// printf("min_index = %d \n", min_index);
+		if(min_index >= 0)
+		{
+			// valid_A[min_index] = 0;
+			result = index_A[min_index];
+			// result = min_index;
+			// printf(" result = %d\n", result);
+			if(min_index == count_A-1)
+			{
+				// printf("min_index == count_A-1\n");
+				count_A--;
+			}
+			else{
+				// printf("else\n");
+				tmp_swap_a = index_A[min_index];
+				index_A[min_index] = index_A[count_A-1];
+				index_A[count_A-1] = tmp_swap_a;
+				count_A--;
+			}
+
+			// printf("result = %d\n", result);
+		}
+		else
+		{
+			negtive++;
+		}
+
+		if(result >= 0)
+		{
+			// record_R++;
+			alpha_t[result] = all_alpha[perm[index_R[sri]]];
+		}
+	}
+	// printf("negtive = %d count_R-fixed_count_A = %d\n", negtive, count_R-fixed_count_A);
+	// reconstruct index_A
+	for (int i = 0; i < fixed_count_A; ++i)
+	{
+		index_A[i] = i;
+	}
+
+	// ================
+	// int index_N = new int[negtive];
+	// int c_0 = 0;
+	// int c_c = 0;
+	// double average = 0;
+
+	if(negtive>0)
+	{
+		return;
+	}
+
+	double sum_a = 0;
+	for (int i = 0; i < fixed_count_A; ++i)
+	{
+		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
+	}
+
+	double sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+
+	if(sum_r>sum_a-tol_equal1 && sum_r<sum_a+tol_equal1)
+	{
+		return;
+	}
+	else if(sum_r>sum_a)
+	{
+		printf("get into sum_r>sum_a\n");
+		for (int i = 0; i < fixed_count_A; ++i)
+		{
+			if(prob->y[perm[index_A[i]]]>0)
+			{
+				if((!(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))&&(alpha_t[i]+sum_r-sum_a<=param->C))
+				{
+					alpha_t[i] += sum_r-sum_a;
+					break;
+				}
+			}
+			else
+			{
+				if((!(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))&&(alpha_t[i]-(sum_r-sum_a)>=0))
+				{
+					alpha_t[i] -= sum_r-sum_a;
+					break;
+				}
+			}
+
+		}
+	}
+	else if(sum_r<sum_a)
+	{
+		printf("get into sum_r<sum_a\n");
+		for (int i = 0; i < fixed_count_A; ++i)
+		{
+			if(prob->y[perm[index_A[i]]]>0)
+			{
+				if((!(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))&&(alpha_t[i]-(sum_a-sum_r)>=0))
+				{
+					alpha_t[i] -= sum_a-sum_r;
+					break;
+				}
+			}
+			else
+			{
+				if((!(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))&&(alpha_t[i]+sum_a-sum_r<=param->C))
+				{
+					alpha_t[i] += sum_a-sum_r;
+					break;
+				}
+			}
+		}
+	}
+	printf("sum_a = %lf sum_r = %lf\n", sum_a, sum_r);
+
+	sum_a = 0;
+	for (int i = 0; i < fixed_count_A; ++i)
+	{
+		sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
+	}
+
+	sum_r = 0;
+	for (int i = 0; i < count_R; ++i)
+	{
+		sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
+	}
+
+	printf("balance two sum: sum_a = %lf sum_r = %lf sum_a-sum_r = %lf\n", sum_a, sum_r, sum_a-sum_r);
+}
+
 
 int upper_violation(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, int Sr_i, int St_i, double *f_i, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *perm, double rho)
 {
