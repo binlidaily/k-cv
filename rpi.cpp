@@ -761,7 +761,10 @@ int find_St_index(const struct svm_problem *prob, const struct svm_parameter *pa
 	return result;
 }
 
-void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha, int *index_R,  int count_R, int *valid_0, double *f_i, int *index_A, int count_A, int *valid_A, int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4, int *index_X5, int count_X5, int *perm, double rho, double* alpha_t)
+void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat **all_K, double *all_alpha,
+				  int *index_R,  int count_R, int *valid_0, double *f_i, int *index_A, int count_A, int *valid_A,
+				  int *index_X1, int count_X1, int *index_X2, int count_X2, int *index_X3, int count_X3, int *index_X4, int count_X4,
+				  int *index_X5, int count_X5, int *perm, double rho, double* alpha_t)
 {
 	int min_violation = INT_MAX;
 	int result = -1;
@@ -778,6 +781,8 @@ void init_alpha_t(const struct svm_problem *prob, const struct svm_parameter *pa
 	double tmp_st_ya = 0;
 	bool skip = false;
 	int negtive = 0;
+
+	printf("R=%d, A=%d, X1=%d, X2=%d, X3=%d, X4=%d, X5=%d\n", count_R, count_A, count_X1, count_X2, count_X3, count_X4, count_X5);
 
 	for (int sri = 0; sri < count_R; ++sri)
 	{

@@ -1714,7 +1714,9 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		}
 
 
-		init_alpha_t(prob, param, all_K, all_alpha, index_R, count_R, valid_0, f_i, index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4, index_X5, count_X5, perm, global_rho, alpha_t);
+		init_alpha_t(prob, param, all_K, all_alpha, index_R, count_R, valid_0, f_i,
+					 index_A, count_A, valid_A, index_X1, count_X1, index_X2, count_X2, index_X3, count_X3, index_X4, count_X4,
+					 index_X5, count_X5, perm, global_rho, alpha_t);
 
 		time_end = clock();
 
