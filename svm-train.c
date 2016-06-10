@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 		clock_t start = clock(), end;
 		do_cross_validation();
 		end = clock();
-		printf("do_cross_validation:%lf\n", (double)(end-start)/CLOCKS_PER_SEC);
+		printf("elasped time for do_cross_validation() is: %lfs\n", (double)(end-start)/CLOCKS_PER_SEC);
 	}
 	else
 	{
@@ -135,15 +135,7 @@ void do_cross_validation()
 	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	double *target = Malloc(double,prob.l);
 
-	// choose which one
-	if(param.rpi == 1)
-	{
-		svm_cross_validation_sri2(&prob,&param,nr_fold,target);
-	}
-	else{
-		svm_cross_validation_libsvm(&prob,&param,nr_fold,target);
-	}
-	
+	svm_cross_validation(&prob,&param,nr_fold,target);
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{
@@ -169,8 +161,7 @@ void do_cross_validation()
 		for(i=0;i<prob.l;i++)
 			if(target[i] == prob.y[i])
 				++total_correct;
-		// printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
-		printf("Cross_Validation_Accuracy: %g%%\n",100.0*total_correct/prob.l);
+		printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
 	}
 	free(target);
 }
@@ -199,7 +190,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	cross_validation = 0;
 
 	// rpi
-	param.rpi = 1;
+	param.rpi = 0;
 
 
 	// parse options

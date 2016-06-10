@@ -9,8 +9,6 @@ extern "C" {
 
 extern int libsvm_version;
 
-typedef float Qfloat;
-
 struct svm_node
 {
 	int index;
@@ -77,10 +75,7 @@ struct svm_model
 };
 
 struct svm_model *svm_train(const struct svm_problem *prob, const struct svm_parameter *param);
-// void svm_cross_validation(const struct svm_problem *prob, const struct svm_parameter *param, int nr_fold, double *target);
-void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target);
-void svm_cross_validation_sri2(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target);
-void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target);
+void svm_cross_validation(const struct svm_problem *prob, const struct svm_parameter *param, int nr_fold, double *target);
 
 int svm_save_model(const char *model_file_name, const struct svm_model *model);
 struct svm_model *svm_load_model(const char *model_file_name);
@@ -109,9 +104,7 @@ void svm_set_print_string_function(void (*print_func)(const char *));
 // at first round, use svm_train_alpha to train dataset and return the alpha
 svm_model *svm_train_alpha(const svm_problem *prob, const svm_parameter *param, double * alpha);
 svm_model *svm_train_rpi(const svm_problem *prob, const svm_parameter *param, double * all_alpha);
-// svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param, double * all_alpha, bool isFirstRound);
-svm_model *svm_train_unified(const svm_problem *prob, const svm_parameter *param, double * all_alpha, double *g_i, Qfloat **Q_g, bool isFirstRound);
-
+svm_model *svm_train_rpi2(const svm_problem *prob, const svm_parameter *param, double * all_alpha, double * g);
 
 #ifdef __cplusplus
 }
