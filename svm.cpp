@@ -23,6 +23,7 @@ int iterations_check = 0;
 double global_rho = 0;
 double tol_equal = 0.000001;
 
+#define CHECK_BUBL 0
 
 int libsvm_version = LIBSVM_VERSION;
 typedef float Qfloat;
@@ -908,7 +909,10 @@ int Solver::select_working_set(int &out_i, int &out_j)
 	}
 
 	if(Gmax+Gmax2 < eps || Gmin_idx == -1)
+	{
+		// printf("in Solver::select_working_set: bu = -Gmax = %lf bl = Gmax2 = %lf difference = %lf\n", -Gmax, Gmax2, -Gmax-Gmax2);
 		return 1;
+	}
 
 	out_i = Gmax_idx;
 	out_j = Gmin_idx;
@@ -2153,7 +2157,15 @@ static double svm_svr_probability(
 
 	svm_parameter newparam = *param;
 	newparam.probability = 0;
-	svm_cross_validation(prob,&newparam,nr_fold,ymv);
+	// svm_cross_validation(prob,&newparam,nr_fold,ymv);
+	// choose which one
+	if(param->rpi == 1)
+	{
+		svm_cross_validation_sri(prob,&newparam,nr_fold,ymv);
+	}
+	else{
+		svm_cross_validation_libsvm(prob,&newparam,nr_fold,ymv);
+	}
 	for(i=0;i<prob->l;i++)
 	{
 		ymv[i]=prob->y[i]-ymv[i];
@@ -2502,7 +2514,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 }
 
 // Stratified cross validation
-void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
+void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
 {
 	int i;
 	int *fold_start;
@@ -2736,6 +2748,14 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 			valid_I[i]=0;
 		}
 
+		#if CHECK_BUBL
+		// check bu>=bl
+		double *f_i = new double[prob->l];
+		calculate_gi_K(prob, param, all_alpha, all_K, begin_A, end_A, perm, f_i);
+		my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
+		#endif
+
+
 		// find the corresponding indexes in M, O, I
 		for(int fi=0;fi<l;fi++)
 		{
@@ -2802,30 +2822,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		double sum_a = 0;
 		for (int i = 0; i < count_A; ++i)
 		{
-			// printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-			// sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
-			// method 1
-			// if(alpha_t[i]<0&&prob->y[perm[index_A[i]]]<0)
-			// {
-			// 	greater++;
-			// }
-			// else if(alpha_t[i]<0&&prob->y[perm[index_A[i]]]>0)
-			// {
-			// 	smaller++;
-			// }
-			
-			// method 2
-			// if(alpha_t[i]<0)
-			// {
-			// 	alpha_t[i] = 0;
-			// }
-			// else if(alpha_t[i]>variable_C)
-			// {
-			// 	alpha_t[i]=variable_C;
-			// }
-			// sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
-
-			// method 3
+			// // method 3
 			if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
 			{
 				alpha_t[i] = 0;
@@ -2849,7 +2846,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		double sum_r = 0;
 		for (int i = 0; i < count_R; ++i)
 		{
-			printf("r = %d y[r] = %lf all_alpha[r] = %lf\n", i, prob->y[perm[index_R[i]]], all_alpha[perm[index_R[i]]]);
+			// printf("r = %d y[r] = %lf all_alpha[r] = %lf\n", i, prob->y[perm[index_R[i]]], all_alpha[perm[index_R[i]]]);
 			sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
 		}
 
@@ -2941,7 +2938,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
 		{
 			sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
 		}
-		printf("Second comparing sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
+		printf("after adjusting sum y*alpha_St comparing sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf, difference: %lf\n", sum_a, sum_r, sum_a-sum_r);
 
 		// =========construct svm_model=========
 		int j,k;
@@ -4585,4 +4582,154 @@ svm_model *svm_train_rpi2(const svm_problem *prob, const svm_parameter *param, d
 		free(nz_start);
 	}
 	return model;
+}
+
+
+// Stratified cross validation
+void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *param, int nr_fold, double *target)
+{
+	int i;
+	int *fold_start;
+	int l = prob->l;
+	int *perm = Malloc(int,l);
+	int nr_class;
+	if (nr_fold > l)
+	{
+		nr_fold = l;
+		fprintf(stderr,"WARNING: # folds > # data. Will use # folds = # data instead (i.e., leave-one-out cross validation)\n");
+	}
+	fold_start = Malloc(int,nr_fold+1);
+	// stratified cv may not give leave-one-out rate
+	// Each class to l folds -> some folds may have zero elements
+	if((param->svm_type == C_SVC ||
+	    param->svm_type == NU_SVC) && nr_fold < l)
+	{
+		int *start = NULL;
+		int *label = NULL;
+		int *count = NULL;
+		svm_group_classes(prob,&nr_class,&label,&start,&count,perm);
+
+		// random shuffle and then data grouped by fold using the array perm
+		int *fold_count = Malloc(int,nr_fold);
+		int c;
+		int *index = Malloc(int,l);
+		for(i=0;i<l;i++)
+			index[i]=perm[i];
+		for (c=0; c<nr_class; c++) 
+			for(i=0;i<count[c];i++)
+			{
+				int j = i+rand()%(count[c]-i);
+				swap(index[start[c]+j],index[start[c]+i]);
+			}
+		for(i=0;i<nr_fold;i++)
+		{
+			fold_count[i] = 0;
+			for (c=0; c<nr_class;c++)
+				fold_count[i]+=(i+1)*count[c]/nr_fold-i*count[c]/nr_fold;
+		}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		for (c=0; c<nr_class;c++)
+			for(i=0;i<nr_fold;i++)
+			{
+				int begin = start[c]+i*count[c]/nr_fold;
+				int end = start[c]+(i+1)*count[c]/nr_fold;
+				for(int j=begin;j<end;j++)
+				{
+					perm[fold_start[i]] = index[j];
+					fold_start[i]++;
+				}
+			}
+		fold_start[0]=0;
+		for (i=1;i<=nr_fold;i++)
+			fold_start[i] = fold_start[i-1]+fold_count[i-1];
+		free(start);
+		free(label);
+		free(count);
+		free(index);
+		free(fold_count);
+	}
+	else
+	{
+		for(i=0;i<l;i++) perm[i]=i;
+		for(i=0;i<l;i++)
+		{
+			int j = i+rand()%(l-i);
+			swap(perm[i],perm[j]);
+		}
+		for(i=0;i<=nr_fold;i++)
+			fold_start[i]=i*l/nr_fold;
+	}
+
+	double time_comsuming_train = 0;
+	for(i=0;i<nr_fold;i++)
+	{
+		int begin = fold_start[i];
+		int end = fold_start[i+1];
+		int j,k;
+		struct svm_problem subprob;
+
+		subprob.l = l-(end-begin);
+		subprob.x = Malloc(struct svm_node*,subprob.l);
+		subprob.y = Malloc(double,subprob.l);
+			
+		k=0;
+		for(j=0;j<begin;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+		for(j=end;j<l;j++)
+		{
+			subprob.x[k] = prob->x[perm[j]];
+			subprob.y[k] = prob->y[perm[j]];
+			++k;
+		}
+
+		// modify
+		clock_t start_train = clock(), end_train;
+		struct svm_model *submodel = svm_train(&subprob,param);
+		end_train = clock();
+		time_comsuming_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
+		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
+
+		if(param->probability && 
+		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
+		{
+			double *prob_estimates=Malloc(double,svm_get_nr_class(submodel));
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict_probability(submodel,prob->x[perm[j]],prob_estimates);
+			free(prob_estimates);
+		}
+		else
+			for(j=begin;j<end;j++)
+				target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
+		svm_free_and_destroy_model(&submodel);
+		free(subprob.x);
+		free(subprob.y);
+	}		
+	// printf("\nsvm_train: %lfs\n", time_comsuming_train);
+	// printf("iterations_check = %d\n", iterations_check);
+	// printf("data size: %d\n", l);
+	// printf("\nsvm_train: %lf\n", time_comsuming_train);
+	// printf("data_size: %d\n", l);
+	// printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
+	
+	free(fold_start);
+	free(perm);
+
+	PrintStat("libsvm");
+}
+
+//print program execution info
+void PrintStat(char *cv_type)
+{
+	// printf("%s is completed\n", cv_type);
+	// printf("total_iter_time: %lf\n", total_iter_time);
+	// printf("iterations_check: %d\n", iterations_check);
+	// printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
+	// printf("cost_per_iter: %f\n", (float)total_iter_time/iterations_check);
+	// printf("total_init_before_iter_cost: %f\n", total_init);
 }

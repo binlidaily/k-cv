@@ -30,3 +30,6 @@ void checking();
 
 
 void calculate_Kernel(const struct svm_problem *prob, const struct svm_parameter *param, Qfloat ** all_K);
+void my_select_working_set(const struct svm_problem *prob, const struct svm_parameter *param, int end_A, double *all_alpha, double *f_i, int *perm);
+
+void calculate_gi_K(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, Qfloat **all_K, int begin_A, int end_A, int *perm, double *f_i);

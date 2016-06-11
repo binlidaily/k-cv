@@ -135,7 +135,15 @@ void do_cross_validation()
 	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	double *target = Malloc(double,prob.l);
 
-	svm_cross_validation(&prob,&param,nr_fold,target);
+	// choose which one
+	if(param.rpi == 1)
+	{
+		svm_cross_validation_sri(&prob,&param,nr_fold,target);
+	}
+	else{
+		svm_cross_validation_libsvm(&prob,&param,nr_fold,target);
+	}
+	
 	if(param.svm_type == EPSILON_SVR ||
 	   param.svm_type == NU_SVR)
 	{

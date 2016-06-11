@@ -2,12 +2,15 @@
 #include <stdio.h>
 // #include <armadillo>
 #include <Eigen/Dense>
+#include <float.h>
 
 #include "rpi.h"
 #include "svm.h"
 
 // using namespace arma;
 using namespace Eigen;
+
+double tol_equal1 = 0.000001;
 
 typedef signed char schar;
 
@@ -481,7 +484,17 @@ printf("count_ignored_R+count_ignored_A+count_M+count_O+count_I = %d\n", count_R
 
 	for (int i = 0; i < count_A; ++i)
 	{
-		alpha_St[i] = result(i, 0);
+		if(isnan(result(i, 0))||result(i, 0)<0)
+		{
+			alpha_St[i] = 0;
+		}
+		else if(result(i, 0 )>param->C)
+		{
+			alpha_St[i] = param->C;
+		}
+		else{
+			alpha_St[i] = result(i, 0);	
+		}
 	}
 
 	delete[] delta_f;
@@ -648,5 +661,105 @@ void calculate_Kernel(const struct svm_problem *prob, const struct svm_parameter
 		case NU_SVR:
 			// solve_nu_svr(prob,param,alpha,&si);
 			break;
+	}
+}
+
+void my_select_working_set(const struct svm_problem *prob, const struct svm_parameter *param, int end_A, double *all_alpha, double *f_i, int *perm)
+{
+	// return i,j such that
+	// i: maximizes -y_i * grad(f)_i, i in I_up(\alpha)
+	// j: minimizes the decrease of obj value
+	//    (if quadratic coefficeint <= 0, replace it with tau)
+	//    -y_j*grad(f)_j < -y_i*grad(f)_i, j in I_low(\alpha)
+	
+	double Gmax = -DBL_MAX;
+	double Gmax2 = -DBL_MAX;
+	// int Gmax_idx = -1;
+	// int Gmin_idx = -1;
+
+	// find the min in X_upper, |bu| = |Gmax|
+	for(int t=end_A;t<prob->l;t++)
+		if(prob->y[perm[t]]>0)	
+		{
+			if(!(all_alpha[perm[t]]>param->C-tol_equal1 && all_alpha[perm[t]]<param->C+tol_equal1))
+				if(-f_i[perm[t]] >= Gmax)
+				{
+					Gmax = -f_i[perm[t]];
+					// Gmax_idx = t;
+				}
+		}
+		else
+		{ //y[perm[t]]==-1
+			if(!(all_alpha[perm[t]]>0-tol_equal1 && all_alpha[perm[t]]<0+tol_equal1))
+				if(f_i[perm[t]] >= Gmax)
+				{
+					Gmax = f_i[perm[t]];
+					// Gmax_idx = t;
+				}
+		}
+
+
+	// find the maxima in X_lower, |bl| = |Gmax2|
+	for(int j=end_A;j<prob->l;j++)
+	{
+		if(prob->y[perm[j]]>0)
+		{
+			if (!(all_alpha[perm[j]]>0-tol_equal1 && all_alpha[perm[j]]<0+tol_equal1))
+			{
+				if (f_i[perm[j]] >= Gmax2)
+				{	
+					Gmax2 = f_i[perm[j]];
+					// Gmin_idx=j;
+				}
+				
+			}
+		}
+		else
+		{
+			if (!(all_alpha[perm[j]]>param->C-tol_equal1 && all_alpha[perm[j]]<param->C+tol_equal1))
+			{
+				if (-f_i[perm[j]] >= Gmax2)
+				{
+					Gmax2 = -f_i[perm[j]];
+					// Gmin_idx=j;
+				}
+			}
+		}
+	}
+
+	printf("in my bu = -Gmax = %lf bl = Gmax2 = %lf difference = %lf\n", -Gmax, Gmax2, -Gmax-Gmax2);
+
+	// if(Gmax+Gmax2 < param->eps || Gmin_idx == -1)
+	// {
+	// 	printf("in my bu = -Gmax = %lf bl = Gmax2 = %lf\n", -Gmax, Gmax2);
+	// }
+
+	// out_i = Gmax_idx;
+	// out_j = Gmin_idx;
+}
+
+
+void calculate_gi_K(const struct svm_problem *prob, const struct svm_parameter *param, double *all_alpha, Qfloat **all_K, int begin_A, int end_A, int *perm, double *f_i)
+{
+	double sigma = 0;
+	for (int i = begin_A; i < end_A; ++i)
+	{
+		f_i[perm[i]] = 0;
+	}
+
+	int y_i = 0;
+	for (int i = end_A; i < prob->l; ++i)
+	{
+		sigma = 0;
+		y_i = prob->y[perm[i]]>0 ? 1: -1;
+		for (int j = end_A; j < prob->l; ++j)
+		{
+			// printf("j = %d y = %lf prob->y[perm[j]]>0 ? 1: -1 = %d\n", j, prob->y[perm[j]], prob->y[perm[j]]>0 ? 1: -1);
+			// TODO all K
+			// sigma += all_alpha[perm[j]]*y_i*(prob->y[perm[j]]>0 ? 1: -1)*kernel_function(prob->x[perm[i]], prob->x[perm[j]], *param);
+			sigma += all_alpha[perm[j]]*y_i*(prob->y[perm[j]]>0 ? 1: -1)*all_K[perm[i]][perm[j]];
+		}
+
+		f_i[perm[i]] = sigma - 1;
 	}
 }
