@@ -378,7 +378,7 @@ void calculate_solution(const struct svm_problem *prob, const struct svm_paramet
 			int *index_O, int count_O, int *index_I, int count_I, int *index_A, int count_A, int *index_R, int count_R, 
 			Qfloat **K_ij, double *alpha, int *perm, double rho, double* alpha_St)
 {
-printf(">>>>>>>>>>> get into approximate_solution\n");
+// printf(">>>>>>>>>>> get into approximate_solution\n");
 	
 	int l = prob->l;
 	MatrixXd left_origin(l+1, count_A);
@@ -403,7 +403,7 @@ printf(">>>>>>>>>>> get into approximate_solution\n");
 // // printf("count_A = %d\n", count_A);
 // // printf("count_R = %d\n", count_R);
 
-printf("count_ignored_R+count_ignored_A+count_M+count_O+count_I = %d\n", count_R+count_A+count_M+count_O+count_I);
+// printf("count_ignored_R+count_ignored_A+count_M+count_O+count_I = %d\n", count_R+count_A+count_M+count_O+count_I);
 	
 	// calculate the first term in equation (8) on the left
 	for (int i = 0; i < l; ++i)
@@ -499,7 +499,7 @@ printf("count_ignored_R+count_ignored_A+count_M+count_O+count_I = %d\n", count_R
 
 	delete[] delta_f;
 
-printf("<<<<<<<<<<< get out of approximate_solution\n");
+// printf("<<<<<<<<<<< get out of approximate_solution\n");
 }
 
 

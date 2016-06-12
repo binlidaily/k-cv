@@ -46,7 +46,8 @@ struct svm_parameter
 	int probability; /* do probability estimates */
 
 	// choose libsvm or rpi
-	int rpi; /* 1 for rpi, 0 for libsvm */
+	int rpi; /* 1 for rpi, 0 for libsvm, l */
+	
 };
 
 //

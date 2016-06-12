@@ -18,13 +18,15 @@
 
 // record iterations in each round
 int iterations_check = 0;
-
+double total_init = 0;
+double total_solve_time = 0;
+double total_iter_time =0;
 // record global_rho
 double global_rho = 0;
 double tol_equal = 0.000001;
 
 #define CHECK_BUBL 0
-
+#define CHECK_EQUATION 0
 int libsvm_version = LIBSVM_VERSION;
 typedef float Qfloat;
 typedef signed char schar;
@@ -548,6 +550,9 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		active_size = l;
 	}
 
+	clock_t start_init, end_init;
+	start_init = clock();
+
 	// initialize gradient
 	if(g==NULL)
 	{
@@ -586,7 +591,12 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 		}
 	}
 
+	end_init = clock();
+	total_init += (double)(end_init-start_init)/CLOCKS_PER_SEC;
+
 	// optimization step
+	clock_t start_train_solve, end_train_solve;
+	start_train_solve = clock();
 
 	int iter = 0;
 	int max_iter = max(10000000, l>INT_MAX/100 ? INT_MAX : 100*l);
@@ -758,7 +768,9 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 			}
 		}
 	}
-
+	end_train_solve = clock();
+	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
+	
 	if(iter >= max_iter)
 	{
 		if(active_size < l)
@@ -805,7 +817,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 	info("\noptimization finished, #iter = %d\n",iter);
 
 	// sum of iter
-	// iterations_check += iter;
+	iterations_check += iter;
 
 	delete[] p;
 	delete[] y;
@@ -1513,7 +1525,7 @@ static void solve_c_svc_rpi(
 	const svm_problem *prob, const svm_parameter* param,
 	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn, double *g)
 {
-	printf("		>>>>>>>>>> get into solve_c_svc_origin\n");
+	// printf("		>>>>>>>>>> get into solve_c_svc_origin\n");
 	int l = prob->l;
 	double *minus_ones = new double[l];
 	schar *y = new schar[l];
@@ -1525,12 +1537,14 @@ static void solve_c_svc_rpi(
 		if(prob->y[i] > 0) y[i] = +1; else y[i] = -1;
 	}
 
+	#if KKT_CHECK
 	double check_KKT_round = 0;
 	for (int i = 0; i < l; ++i)
 	{
 		check_KKT_round+=prob->y[i]*alpha[i];
 	}
 	printf("in solve_c_svc_origin after a round, check_KKT_round = %lf\n", check_KKT_round);
+	#endif
 
 	Solver s;
 
@@ -1541,8 +1555,9 @@ static void solve_c_svc_rpi(
 		alpha, Cp, Cn, param->eps, si, param->shrinking, g);
 
 	end_train_solve = clock();
+	total_solve_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
 	// time_comsuming_solve += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
-	printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
+	// printf("elasped time for Solve() is: %lfs \n", (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC);
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
@@ -1560,7 +1575,7 @@ static void solve_c_svc_rpi(
 
 	delete[] minus_ones;
 	delete[] y;
-	printf("		<<<<<<<<< get out of solve_c_svc_origin\n");
+	// printf("		<<<<<<<<< get out of solve_c_svc_origin\n");
 }
 
 static void solve_nu_svc(
@@ -1796,30 +1811,32 @@ static decision_function svm_train_one_rpi(
 	const svm_problem *prob, const svm_parameter *param,
 	double Cp, double Cn, double *all_alpha, double *G)
 {
-	printf("	>>>>>>>>>>>>> get into svm_train_one_origin\n");
+	// printf("	>>>>>>>>>>>>> get into svm_train_one_origin\n");
 	double *alpha = Malloc(double,prob->l);
 	alpha = all_alpha;
 	Solver::SolutionInfo si;
 
+	#if KKT_CHECK
 	double sum_y_a = 0;
 	for (int i = 0; i < prob->l; ++i)
 	{
 		sum_y_a += prob->y[i]*all_alpha[i];
 	}
 	printf("in svm_train_one_origin sum{alpha_i * y_i} = %lf\n", sum_y_a);
+	#endif
 
 	switch(param->svm_type)
 	{
 		case C_SVC:
 		{
-			clock_t start_train_solve_c, end_train_solve_c;
-			start_train_solve_c = clock();
+			// clock_t start_train_solve_c, end_train_solve_c;
+			// start_train_solve_c = clock();
 
 			solve_c_svc_rpi(prob,param,alpha,&si,Cp,Cn,G);
 
-			end_train_solve_c = clock();	
+			// end_train_solve_c = clock();	
 			// time_comsuming_solve_c += (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC;
-			printf("elasped time for solve_c_svc_origin() is: %lfs\n", (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC);
+			// printf("elasped time for solve_c_svc_origin() is: %lfs\n", (double)(end_train_solve_c-start_train_solve_c)/CLOCKS_PER_SEC);
 		}
 			
 			break;
@@ -1867,7 +1884,7 @@ static decision_function svm_train_one_rpi(
 	f.alpha = alpha;
 
 	f.rho = si.rho;
-	printf("	<<<<<<<<<<<<<< get out of svm_train_one_origin\n");
+	// printf("	<<<<<<<<<<<<<< get out of svm_train_one_origin\n");
 	return f;
 }
 
@@ -2638,11 +2655,17 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 
 		end_train = clock();
 
+		for (int i = begin_A; i < subprob.l; ++i)
+		{
+			all_alpha[perm[end_A+i]] = alpha_1st[i];
+		}
+
+		#if KKT_CHECK
 		// check if sum{y_i*alpha_i} == 0
 		double check_KKT = 0;
 		for (int i = 0; i < begin_A; ++i)
 		{
-			all_alpha[perm[i]] = alpha_1st[i];
+			// all_alpha[perm[i]] = alpha_1st[i];
 			check_KKT += subprob.y[i]*all_alpha[perm[i]];
 		}
 
@@ -2650,14 +2673,15 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		{
 			// if(i==200)
 			// 	printf("check_KKT = %lf\n", check_KKT);
-			all_alpha[perm[end_A+i]] = alpha_1st[i];
+			// all_alpha[perm[end_A+i]] = alpha_1st[i];
 			check_KKT += subprob.y[i]*all_alpha[perm[end_A+i]];
 		}
 		printf("check if sum{y_i*alpha_i} == 0 after svm_train_alpha: %lf\n", check_KKT);
 		// end--> check if sum{y_i*alpha_i} == 0
-		
+		#endif
+
 		time_svm_train += (double)(end_train-start_train)/CLOCKS_PER_SEC;
-		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, 1);
+		// printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, 1);
 
 		if(param->probability && 
 		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
@@ -2683,6 +2707,9 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	// 	all_Q[i] = new Qfloat[l];
 	// }
 
+	double calculate_Kernel_time = 0;
+	clock_t calculate_Kernel_start = clock();
+
 	Qfloat **all_K = new Qfloat*[l];
 
 	for(int i=0;i<l;i++)
@@ -2693,6 +2720,8 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	// calculate_Q(prob, param, all_Q);
 	calculate_Kernel(prob, param, all_K);
 
+	clock_t calculate_Kernel_end = clock();
+	calculate_Kernel_time += (double)(calculate_Kernel_end-calculate_Kernel_start)/CLOCKS_PER_SEC;
 
 	double *fx = new double[l];
 	for (int i = 0; i < l; ++i)
@@ -2700,6 +2729,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		fx[i] = calculate_fx(perm[i], prob, param, all_alpha, global_rho);
 	}
 
+	double time_approximate = 0;
 	for(i=1;i<nr_fold;i++)
 	{
 		// Set R, remove testing subset in current round
@@ -2802,46 +2832,40 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		find_index(l, begin_A, end_A, begin, end, valid_I, index_I);
 
 		double * alpha_t = new double[count_A];
+
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	// printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
+		// 	alpha_t[i] = 0;
+		// }
+
 		clock_t time_start, time_end;
 		time_start = clock();
 		calculate_solution(prob, param, index_M, count_M, index_O, count_O, index_I, count_I, index_A, count_A, index_R, count_R, all_K, all_alpha, perm, global_rho, alpha_t);
 		time_end = clock();
-		// time_comsuming += (double)(time_end-time_start)/CLOCKS_PER_SEC;
-		printf("elasped time for approximate_solution() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
+		time_approximate += (double)(time_end-time_start)/CLOCKS_PER_SEC;
+		// printf("elasped time for approximate_solution() is: %lfs\n", (double)(time_end-time_start)/CLOCKS_PER_SEC);
 
 		// check alpha_t
-		printf("----> alpha_t\n");
-		for (int i = 0; i < count_A; ++i)
-		{
-			printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-		}
+		// printf("----> alpha_t\n");
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
+		// }
 
-		int greater = 0;
-		int smaller = 0;
-		int count_for_average = 0;
+
 		double sum_a = 0;
 		for (int i = 0; i < count_A; ++i)
 		{
-			// // method 3
-			if(alpha_t[i]<0||(alpha_t[i]>-0.0000001&&alpha_t[i]<0.0000001))
-			{
-				alpha_t[i] = 0;
-				count_for_average++;
-			}
-			else if(alpha_t[i]>param->C||(alpha_t[i]>param->C-0.0000001&&alpha_t[i]<param->C+0.0000001))
-			{
-				alpha_t[i] = param->C;
-				count_for_average++;
-			}
 			sum_a += prob->y[perm[index_A[i]]]*alpha_t[i];
 		}
 
 		// check alpha_t after adjusting
-		printf("after adjusting\n");
-		for (int i = 0; i < count_A; ++i)
-		{
-			printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
-		}
+		// printf("after adjusting\n");
+		// for (int i = 0; i < count_A; ++i)
+		// {
+		// 	printf("i = %d alpha_t[i]= %lf\n", i, alpha_t[i]);
+		// }
 
 		double sum_r = 0;
 		for (int i = 0; i < count_R; ++i)
@@ -2851,81 +2875,100 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		}
 
 		// check if these two sums are equal
-		printf("Compare sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
-
+		// printf("Compare sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf\n", sum_a, sum_r);
+		// printf("param->C = %lf\n", param->C);
 		if(sum_a>sum_r)
 		{
-			double average = (double)(sum_a-sum_r)/(count_A-count_for_average);
-			printf("sum_a>sum_r, sum_a-sum_r = %lf greater = %d average = %lf count_A = %d count_for_average =%d\n", sum_a-sum_r, greater, average, count_A, count_for_average);
+			int count_for_average = 0;
+			for (int i = 0; i < count_A; ++i)
+			{
+				if((prob->y[perm[index_A[i]]]<0)&&(alpha_t[i]>=0-tol_equal)&&(alpha_t[i]<=0+tol_equal))
+				{
+					count_for_average++;
+				}
+				if((prob->y[perm[index_A[i]]]>0)&&(alpha_t[i]>=param->C-tol_equal)&&(alpha_t[i]<=param->C+tol_equal))
+				{
+					count_for_average++;
+				}
+			}
+
+			double average = (double)(sum_a-sum_r)/count_for_average;
+			// printf("sum_a>sum_r, sum_a-sum_r = %lf average = %lf count_A = %d count_for_average = %d average*count_for_average = %lf\n", sum_a-sum_r, average, count_A, count_for_average, average*count_for_average);
 			int count_check = 0;
 			for (int m = 0; m < count_A; ++m)
 			{
-
-				if(((alpha_t[m]>0-tol_equal)&&(alpha_t[m]<0+tol_equal)))
+				if((prob->y[perm[index_A[m]]]<0)&&(alpha_t[m]>=0-tol_equal)&&(alpha_t[m]<=0+tol_equal))
 				{
-					all_alpha[perm[index_A[m]]] = 0;
-					count_check++;
-					continue;
-				}
-
-				if((alpha_t[m]>param->C-tol_equal)&&(alpha_t[m]<param->C+tol_equal))
-				{
-					all_alpha[perm[index_A[m]]] = param->C;
-					count_check++;
-					continue;
-				}
-
-				if(prob->y[perm[index_A[m]]]<0)
-				{
+					// printf("count_check = %d m = %d perm[index_A[m]] = %d y = %lf alpha_t[m] = %lf all_alpha: before vs. after: %lf vs. ", count_check+1, m, perm[index_A[m]], prob->y[perm[index_A[m]]], alpha_t[m], all_alpha[perm[index_A[m]]]);
+					// alpha_t[m] += average;
 					all_alpha[perm[index_A[m]]] = alpha_t[m] + average;
-					greater++;
+					// printf(" %lf\n", all_alpha[perm[index_A[m]]]);
+					// all_alpha[perm[index_A[m]]] = 0 + average;
+					count_check++;
+				}
+				else if((prob->y[perm[index_A[m]]]>0)&&(alpha_t[m]>=param->C-tol_equal)&&(alpha_t[m]<=param->C+tol_equal))
+				{
+					// alpha_t[m] -= average;
+					// printf("count_check = %d m = %d perm[index_A[m]] = %d y = %lf alpha_t[m] = %lf all_alpha: before vs. after: %lf vs. ", count_check+1, m, perm[index_A[m]], prob->y[perm[index_A[m]]], alpha_t[m], all_alpha[perm[index_A[m]]]);
+					all_alpha[perm[index_A[m]]] = alpha_t[m] - average;
+					// printf(" %lf\n", all_alpha[perm[index_A[m]]]);
+					// all_alpha[perm[index_A[m]]] = param->C - average;
+					count_check++;
 				}
 				else
 				{
-					all_alpha[perm[index_A[m]]] = alpha_t[m] - average;
-					greater++;
+					all_alpha[perm[index_A[m]]] = alpha_t[m];
 				}
-				
 			}
-			printf("if greater is equal to count_check: %d vs. %d sum = %d \n", greater, count_check, greater+count_check );
+			// printf("if count_for_average is equal to count_check: %d vs. %d \n", count_for_average, count_check);
 		}
 		else
-		{
+		{	// sum_a<sum_r
+			int count_for_average = 0;
+			for (int i = 0; i < count_A; ++i)
+			{
+				if((prob->y[perm[index_A[i]]]>0)&&(alpha_t[i]>=0-tol_equal)&&(alpha_t[i]<=0+tol_equal))
+				{
+					count_for_average++;
+				}
+				if((prob->y[perm[index_A[i]]]<0)&&(alpha_t[i]>=param->C-tol_equal)&&(alpha_t[i]<=param->C+tol_equal))
+				{
+					count_for_average++;
+				}
+			}
+
 			// sum_a<sum_r
-			double average = (double)(sum_r-sum_a)/(count_A-count_for_average);
-			printf("sum_a<sum_r, sum_r-sum_a = %lf average = %lf count_A = %d count_for_average = %d\n", sum_r-sum_a, average, count_A, count_for_average);
+			double average = (double)(sum_r-sum_a)/count_for_average;
+			// printf("sum_a<sum_r, sum_r-sum_a = %lf average = %lf count_A = %d count_for_average = %d average*count_for_average = %lf\n", sum_r-sum_a, average, count_A, count_for_average, average*count_for_average);
 			int count_check = 0;
 			for (int m = 0; m < count_A; ++m)
 			{
-				if(((alpha_t[m]>0-tol_equal)&&(alpha_t[m]<0+tol_equal)))
+				if((prob->y[perm[index_A[m]]]>0)&&(alpha_t[m]>=0-tol_equal)&&(alpha_t[m]<=0+tol_equal))
 				{
-					all_alpha[perm[index_A[m]]] = 0;
+					// printf("count_check = %d m = %d perm[index_A[m]] = %d y = %lf alpha_t[m] = %lf all_alpha: before vs. after: %lf vs. ", count_check+1, m, perm[index_A[m]], prob->y[perm[index_A[m]]], alpha_t[m], all_alpha[perm[index_A[m]]]);
+					all_alpha[perm[index_A[m]]] = alpha_t[m] + average;
+					// all_alpha[perm[index_A[m]]] = 0 + average;
+					// printf(" %lf\n", all_alpha[perm[index_A[m]]]);
 					count_check++;
-					continue;
 				}
-
-				if((alpha_t[m]>param->C-tol_equal)&&(alpha_t[m]<param->C+tol_equal))
+				else if((prob->y[perm[index_A[m]]]<0)&&(alpha_t[m]>=param->C-tol_equal)&&(alpha_t[m]<=param->C+tol_equal))
 				{
-					all_alpha[perm[index_A[m]]] = param->C;
+					// printf("count_check = %d m = %d perm[index_A[m]] = %d y = %lf alpha_t[m] = %lf all_alpha: before vs. after: %lf vs. ", count_check+1, m, perm[index_A[m]], prob->y[perm[index_A[m]]], alpha_t[m], all_alpha[perm[index_A[m]]]);
+					all_alpha[perm[index_A[m]]] = alpha_t[m] - average;
+					// all_alpha[perm[index_A[m]]] = param->C - average;
+					// printf(" %lf\n", all_alpha[perm[index_A[m]]]);
 					count_check++;
-					continue;
-				}
-
-				if(prob->y[perm[index_A[m]]]<0)
-				{
-					all_alpha[perm[index_A[m]]] = alpha_t[m] - average;	
-					smaller++;
 				}
 				else
 				{
-					all_alpha[perm[index_A[m]]] = alpha_t[m] + average;
-					smaller++;
+					all_alpha[perm[index_A[m]]] = alpha_t[m];
 				}
 				// printf("i = %d alpha_t vs. alpha_St: %lf vs. %lf\n", m, alpha_t[m], all_alpha[index_A[m]]);
 			}
-			printf("if smaller is equal to count_check: %d vs. %d sum = %d \n", smaller, count_check, smaller+count_check);
+			// printf("if count_for_average is equal to count_check: %d vs. %d \n", count_for_average, count_check);
 		}
 
+		#if CHECK_EQUATION
 		// check these two sums are equal or not again, after adjusting
 		sum_a = 0;
 		for (int i = 0; i < count_A; ++i)
@@ -2939,6 +2982,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 			sum_r += prob->y[perm[index_R[i]]]*all_alpha[perm[index_R[i]]];
 		}
 		printf("after adjusting sum y*alpha_St comparing sigma_St(A) vs. sigma_Sr(R): %lf vs. %lf, difference: %lf\n", sum_a, sum_r, sum_a-sum_r);
+		#endif
 
 		// =========construct svm_model=========
 		int j,k;
@@ -2978,7 +3022,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		submodel =  svm_train_rpi2(&subprob, param, subalpha, g);
 		end_train = clock();
 		time_svm_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
-		printf("elasped time for svm_train() is: %lfs\n", (double)(end_train-start_train)/CLOCKS_PER_SEC);
+		// printf("elasped time for svm_train() is: %lfs\n", (double)(end_train-start_train)/CLOCKS_PER_SEC);
 
 		if(param->probability && 
 		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
@@ -3008,8 +3052,22 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		free(subprob.x);
 		free(subprob.y);
 	}		
-	printf("time consuming for svm_train() in all k fold: %lf\n", time_svm_train);
-	printf("iterations_check = %d\n", iterations_check);
+	// printf("time consuming for svm_train() in all k fold: %lf\n", time_svm_train);
+	// printf("iterations_check = %d\n", iterations_check);
+	
+	printf("\ncalculate_Kernel_time: %lf\n", calculate_Kernel_time);
+	printf("svm_train: %lf\n", time_svm_train);
+	printf("initialize_alpha: %lf\n", time_approximate);
+	printf("initialize alpha and svm_train: %lfs\n", time_svm_train+time_approximate);
+	printf("data_size: %d\n", l);
+	printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
+
+
+
+
+
+
+
 
 	delete[] fx;
 	// for(int i=0;i<l;i++)
@@ -4449,7 +4507,7 @@ svm_model *svm_train_rpi2(const svm_problem *prob, const svm_parameter *param, d
 				if(param->rpi == 1)
 				{
 					printf("rpi = 1, choose rpi\n");
-					f[p] = svm_train_one_rpi(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha, NULL);
+					f[p] = svm_train_one_rpi(&sub_prob,param,weighted_C[i],weighted_C[j], subalpha, g);
 				}
 				else
 				{
@@ -4693,7 +4751,7 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 		struct svm_model *submodel = svm_train(&subprob,param);
 		end_train = clock();
 		time_comsuming_train+=(double)(end_train-start_train)/CLOCKS_PER_SEC;
-		printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
+		// printf("elasped time for svm_train() is: %lfs, current fold is: %d \n", (double)(end_train-start_train)/CLOCKS_PER_SEC, i+1);
 
 		if(param->probability && 
 		   (param->svm_type == C_SVC || param->svm_type == NU_SVC))
@@ -4710,11 +4768,9 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 		free(subprob.x);
 		free(subprob.y);
 	}		
-	// printf("\nsvm_train: %lfs\n", time_comsuming_train);
-	// printf("iterations_check = %d\n", iterations_check);
-	// printf("data size: %d\n", l);
-	// printf("\nsvm_train: %lf\n", time_comsuming_train);
-	// printf("data_size: %d\n", l);
+	printf("\nsvm_train: %lfs\n", time_comsuming_train);
+	printf("iterations_check = %d\n", iterations_check);
+	printf("data size: %d\n", l);
 	// printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
 	
 	free(fold_start);
@@ -4726,10 +4782,10 @@ void svm_cross_validation_libsvm(const svm_problem *prob, const svm_parameter *p
 //print program execution info
 void PrintStat(char *cv_type)
 {
-	// printf("%s is completed\n", cv_type);
-	// printf("total_iter_time: %lf\n", total_iter_time);
-	// printf("iterations_check: %d\n", iterations_check);
+	printf("%s is completed\n", cv_type);
+	printf("total_iter_time: %lf\n", total_iter_time);
+	printf("iterations_check: %d\n", iterations_check);
 	// printf("cache hit=%d, missed=%d, ratio=%f\n", cache_hit, cache_missed, (float)cache_hit/cache_missed);
-	// printf("cost_per_iter: %f\n", (float)total_iter_time/iterations_check);
-	// printf("total_init_before_iter_cost: %f\n", total_init);
+	printf("cost_per_iter: %f\n", (float)total_iter_time/iterations_check);
+	printf("total_init_before_iter_cost: %f\n", total_init);
 }

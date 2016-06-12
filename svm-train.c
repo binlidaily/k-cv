@@ -106,7 +106,7 @@ int main(int argc, char **argv)
 		clock_t start = clock(), end;
 		do_cross_validation();
 		end = clock();
-		printf("elasped time for do_cross_validation() is: %lfs\n", (double)(end-start)/CLOCKS_PER_SEC);
+		printf("do_cross_validation: %lf\n", (double)(end-start)/CLOCKS_PER_SEC);
 	}
 	else
 	{
@@ -199,7 +199,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 
 	// rpi
 	param.rpi = 0;
-
+	
 
 	// parse options
 	for(i=1;i<argc;i++)
