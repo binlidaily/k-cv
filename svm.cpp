@@ -770,7 +770,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
 	}
 	end_train_solve = clock();
 	total_iter_time += (double)(end_train_solve-start_train_solve)/CLOCKS_PER_SEC;
-	
+
 	if(iter >= max_iter)
 	{
 		if(active_size < l)
@@ -3062,12 +3062,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	printf("data_size: %d\n", l);
 	printf("total_solve_time: %lf\n", total_solve_time/iterations_check);
 
-
-
-
-
-
-
+	PrintStat("rpi");
 
 	delete[] fx;
 	// for(int i=0;i<l;i++)

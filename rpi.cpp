@@ -396,15 +396,6 @@ void calculate_solution(const struct svm_problem *prob, const struct svm_paramet
 
 	double  *delta_f = new double[l];
 
-// 	// print testing
-// // printf("count_M = %d\n", count_M);
-// // printf("count_O = %d\n", count_O);
-// // printf("count_I = %d\n", count_I);
-// // printf("count_A = %d\n", count_A);
-// // printf("count_R = %d\n", count_R);
-
-// printf("count_ignored_R+count_ignored_A+count_M+count_O+count_I = %d\n", count_R+count_A+count_M+count_O+count_I);
-	
 	// calculate the first term in equation (8) on the left
 	for (int i = 0; i < l; ++i)
 	{
