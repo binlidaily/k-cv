@@ -43,6 +43,7 @@ void exit_with_help()
 	"-wi weight : set the parameter C of class i to weight*C, for C-SVC (default 1)\n"
 	"-v n: n-fold cross validation mode\n"
 	"-q : quiet mode (no outputs)\n"
+	"-l : cross validation (0/1, default 0)\n"
 	);
 	exit(1);
 }
