@@ -2718,7 +2718,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 	}
 
 	// calculate_Q(prob, param, all_Q);
-	calculate_Kernel(prob, param, all_K);
+	calculate_Kernel(prob, param, all_K); 
 
 	clock_t calculate_Kernel_end = clock();
 	calculate_Kernel_time += (double)(calculate_Kernel_end-calculate_Kernel_start)/CLOCKS_PER_SEC;
