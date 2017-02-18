@@ -2779,7 +2779,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 		}
 
 		#if CHECK_BUBL
-		// check bu>=bl
+		// check if bu>=bl
 		double *f_i = new double[prob->l];
 		calculate_gi_K(prob, param, all_alpha, all_K, begin_A, end_A, perm, f_i);
 		my_select_working_set(prob, param, end_A, all_alpha, f_i, perm);
@@ -2841,6 +2841,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 
 		clock_t time_start, time_end;
 		time_start = clock();
+		// calculate $\alpha^\prime_T$
 		calculate_solution(prob, param, index_M, count_M, index_O, count_O, index_I, count_I, index_A, count_A, index_R, count_R, all_K, all_alpha, perm, global_rho, alpha_t);
 		time_end = clock();
 		time_approximate += (double)(time_end-time_start)/CLOCKS_PER_SEC;
@@ -3051,7 +3052,7 @@ void svm_cross_validation_sri(const svm_problem *prob, const svm_parameter *para
 
 		free(subprob.x);
 		free(subprob.y);
-	}		
+	} // end of the (n-1) remaining folds	
 	// printf("time consuming for svm_train() in all k fold: %lf\n", time_svm_train);
 	// printf("iterations_check = %d\n", iterations_check);
 	

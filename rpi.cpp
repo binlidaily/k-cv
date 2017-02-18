@@ -378,7 +378,12 @@ void calculate_solution(const struct svm_problem *prob, const struct svm_paramet
 			int *index_O, int count_O, int *index_I, int count_I, int *index_A, int count_A, int *index_R, int count_R, 
 			Qfloat **K_ij, double *alpha, int *perm, double rho, double* alpha_St)
 {
-// printf(">>>>>>>>>>> get into approximate_solution\n");
+	/**
+	 * calculate $\alpha^\prime_T$ with the equation (18) in the following paper:
+	 * Improving Efficiency of SVM k-fold Cross-validation by Alpha Seeding
+	 *
+	 */
+
 	
 	int l = prob->l;
 	MatrixXd left_origin(l+1, count_A);
@@ -396,7 +401,7 @@ void calculate_solution(const struct svm_problem *prob, const struct svm_paramet
 
 	double  *delta_f = new double[l];
 
-	// calculate the first term in equation (8) on the left
+	// calculate the first term in equation (18) on the left
 	for (int i = 0; i < l; ++i)
 	{
 		for (int j = 0; j < count_A; ++j)
@@ -411,7 +416,7 @@ void calculate_solution(const struct svm_problem *prob, const struct svm_paramet
 		left_origin(l, i) = prob->y[perm[index_A[i]]];
 	}
 
-	// calculate the delta_f in the second term
+	// calculate the delta_f in the second equation
 	// M
 	for (int i = 0; i < count_M; ++i)
 	{
